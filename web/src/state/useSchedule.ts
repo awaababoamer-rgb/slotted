@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   findConflicts, generateSchedules, hasKnownTimes,
-  type Course, type Pick, type Preferences, type Section,
+  type Course, type Fix, type Pick, type Preferences, type Section,
 } from "@slotted/engine";
+
+/** A fix (or another week from Compare) that was just put on the schedule. */
+export interface AppliedChange {
+  fix: Fix;
+  /** e.g. "Fix 1" or "Week 2" */
+  name: string;
+}
+
+/** A schedule's fingerprint: its class numbers, sorted. */
+export const fingerprint = (picks: Pick[]) =>
+  picks.map((p) => p.section.class_number).sort((a, b) => a - b).join(",");
 
 /** Starting priorities (same as the team's design). Editable in the Priorities dialog. */
 export const DEFAULT_PREFS: Preferences = {
@@ -165,9 +176,30 @@ export function useSchedule(catalog: Course[]) {
     setState((prev) => ({ ...prev, prefs }));
   }, []);
 
+  // ---- Applying a fix (or another week) ----
+  // Not saved across reloads: it's only there to show the green "applied" note and Undo.
+  const [appliedRaw, setAppliedRaw] = useState<AppliedChange | null>(null);
+  // The note only holds while the schedule is still exactly that week.
+  const applied = appliedRaw && fingerprint(appliedRaw.fix.schedule) === fingerprint(picks) ? appliedRaw : null;
+
+  const applyChange = useCallback(
+    (fix: Fix, name: string) => {
+      replaceSections(fix.moves.map((m) => ({ code: m.courseCode, component: m.component, classNumber: m.to.class_number })));
+      setAppliedRaw({ fix, name });
+    },
+    [replaceSections],
+  );
+
+  const undoApplied = useCallback(() => {
+    if (!applied) return;
+    replaceSections(applied.fix.moves.map((m) => ({ code: m.courseCode, component: m.component, classNumber: m.from.class_number })));
+    setAppliedRaw(null);
+  }, [applied, replaceSections]);
+
   return {
     state, byCode, picks, conflictReport, conflictedClassNumbers,
     addCourse, removeCourse, changeSection, toggleLock, replaceSections, setPrefs,
+    applied, applyChange, undoApplied,
   };
 }
 

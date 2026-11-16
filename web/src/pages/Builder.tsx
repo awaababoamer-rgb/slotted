@@ -25,9 +25,6 @@ function hoursText(hours: number) {
   return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
 }
 
-/** A schedule's fingerprint: its class numbers, sorted. */
-const fingerprint = (picks: Pick[]) => picks.map((p) => p.section.class_number).sort((a, b) => a - b).join(",");
-
 export function priorityLines(prefs: Preferences): string[] {
   const lines: string[] = [];
   if (prefs.earliestStart) lines.push(`No classes before ${formatTime(prefs.earliestStart)}`);
@@ -41,7 +38,6 @@ export function priorityLines(prefs: Preferences): string[] {
 export function Builder({ courses, schedule, term }: Props) {
   const { picks, conflictReport, state } = schedule;
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
-  const [applied, setApplied] = useState<{ fix: Fix; index: number } | null>(null);
 
   // ---- Smart Resolve ----
   const fixResult = useMemo(
@@ -65,8 +61,7 @@ export function Builder({ courses, schedule, term }: Props) {
 
   // Any change to the schedule ends a preview.
   useEffect(() => setPreviewIndex(null), [fixResult]);
-  // The "applied" note only holds while the schedule is still exactly that fix.
-  const appliedValid = applied && fingerprint(applied.fix.schedule) === fingerprint(picks) ? applied : null;
+  const appliedValid = schedule.applied;
 
   const preview = previewIndex !== null ? fixResult.fixes[previewIndex] : undefined;
   const shownPicks = preview ? preview.schedule : picks;
@@ -92,18 +87,9 @@ export function Builder({ courses, schedule, term }: Props) {
   function applyFix(index: number) {
     const fix = fixResult.fixes[index];
     if (!fix) return;
-    schedule.replaceSections(fix.moves.map((m) => ({ code: m.courseCode, component: m.component, classNumber: m.to.class_number })));
-    setApplied({ fix, index });
+    schedule.applyChange(fix, `Fix ${index + 1}`);
     setPreviewIndex(null);
     showWeekOnSmallScreens();
-  }
-
-  function undo() {
-    if (!appliedValid) return;
-    schedule.replaceSections(
-      appliedValid.fix.moves.map((m) => ({ code: m.courseCode, component: m.component, classNumber: m.from.class_number })),
-    );
-    setApplied(null);
   }
 
   const bannerMode: BannerMode = preview
@@ -115,7 +101,7 @@ export function Builder({ courses, schedule, term }: Props) {
         onApply: () => applyFix(previewIndex!),
       }
     : appliedValid
-      ? { kind: "applied", fixNumber: appliedValid.index + 1 }
+      ? { kind: "applied", name: appliedValid.name }
       : { kind: "normal" };
 
   // ---- Week view ----
@@ -235,8 +221,16 @@ export function Builder({ courses, schedule, term }: Props) {
             if (i !== null) showWeekOnSmallScreens();
           }}
           onApply={applyFix}
-          onUndo={undo}
+          onUndo={schedule.undoApplied}
         />
+        {fixResult.fixes.length > 0 && (
+          <a
+            href="#compare"
+            className="flex items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-brand-700 shadow-sm hover:border-brand-200"
+          >
+            Compare every fix as a full week <span aria-hidden>→</span>
+          </a>
+        )}
         <section className="rounded-2xl border border-line bg-white p-4 shadow-sm lg:hidden">
           <h2 className="font-display text-lg font-semibold">Your priorities</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">

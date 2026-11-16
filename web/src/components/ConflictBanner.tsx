@@ -18,7 +18,7 @@ export function groupConflicts(conflicts: Conflict[]) {
 export type BannerMode =
   | { kind: "normal" }
   | { kind: "preview"; fixNumber: number; remaining: number; onCancel: () => void; onApply: () => void }
-  | { kind: "applied"; fixNumber: number };
+  | { kind: "applied"; name: string };
 
 interface Props {
   conflicts: Conflict[];
@@ -55,7 +55,7 @@ export function ConflictBanner({ conflicts, courseCount, mode }: Props) {
   if (pairs.length === 0) {
     const text =
       mode.kind === "applied"
-        ? `Fix ${mode.fixNumber} applied. No conflicts, all ${plural(courseCount, "course")} kept.`
+        ? `${mode.name} applied. No conflicts, all ${plural(courseCount, "course")} kept.`
         : `No time conflicts. All ${plural(courseCount, "course")} fit.`;
     return (
       <div role="status" className="flex items-center gap-2 rounded-2xl border border-good-200 bg-good-50 px-4 py-3 text-sm font-medium text-good-700 transition-colors duration-500">

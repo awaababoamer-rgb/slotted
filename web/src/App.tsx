@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { CalendarIcon } from "./components/icons";
 import { loadCatalog, type Catalog } from "./data/catalog";
 import { formatDate, TERM_LABELS } from "./lib/format";
+import type { WeekOption } from "./lib/weekOptions";
 import { Builder } from "./pages/Builder";
+import { Compare } from "./pages/Compare";
 import { useSchedule } from "./state/useSchedule";
 
 type GridTerm = "first_term" | "second_term";
@@ -24,9 +26,44 @@ export function App() {
   return <Shell catalog={catalog} />;
 }
 
+type Page = "builder" | "compare";
+
+function pageFromHash(): Page {
+  return window.location.hash === "#compare" ? "compare" : "builder";
+}
+
 function Shell({ catalog }: { catalog: Catalog }) {
   const schedule = useSchedule(catalog.courses);
   const [term, setTerm] = useState<GridTerm>("first_term");
+  const [page, setPage] = useState<Page>(pageFromHash);
+
+  // Simple page switching with #builder / #compare in the address bar (back button works).
+  useEffect(() => {
+    const onHash = () => {
+      setPage(pageFromHash());
+      if (window.location.hash !== "#smart-resolve") window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  /** "Use this week" on Compare: go back to the Builder, then apply so the classes visibly slide. */
+  function chooseWeek(option: WeekOption) {
+    window.location.hash = "#builder";
+    window.setTimeout(() => schedule.applyChange(option.fix, option.name), 350);
+  }
+
+  const tab = (target: Page, label: string) => (
+    <a
+      href={`#${target}`}
+      aria-current={page === target ? "page" : undefined}
+      className={`rounded-lg px-3 py-1.5 text-sm whitespace-nowrap ${
+        page === target ? "bg-brand-100 font-semibold text-brand-700" : "text-muted hover:text-ink"
+      }`}
+    >
+      {label}
+    </a>
+  );
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -40,8 +77,8 @@ function Shell({ catalog }: { catalog: Catalog }) {
             </span>
           </div>
           <nav aria-label="Main" className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto">
-            <a href="#builder" aria-current="page" className="rounded-lg bg-brand-100 px-3 py-1.5 text-sm font-semibold text-brand-700">Builder</a>
-            <span className="cursor-not-allowed rounded-lg px-3 py-1.5 text-sm text-muted/60" title="Coming in a later step">Compare fixes</span>
+            {tab("builder", "Builder")}
+            {tab("compare", "Compare weeks")}
             <span className="cursor-not-allowed rounded-lg px-3 py-1.5 text-sm text-muted/60" title="Coming in a later step">Priorities</span>
           </nav>
           <label className="ml-auto flex items-center gap-2 text-sm text-muted">
@@ -58,8 +95,12 @@ function Shell({ catalog }: { catalog: Catalog }) {
         </div>
       </header>
 
-      <main id="builder" className="flex-1">
-        <Builder courses={catalog.courses} schedule={schedule} term={term} />
+      <main className="flex-1">
+        {page === "compare" ? (
+          <Compare courses={catalog.courses} schedule={schedule} term={term} onUseWeek={chooseWeek} />
+        ) : (
+          <Builder courses={catalog.courses} schedule={schedule} term={term} />
+        )}
       </main>
 
       <footer className="border-t border-line bg-white">

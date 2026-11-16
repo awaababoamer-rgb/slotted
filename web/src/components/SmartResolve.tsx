@@ -14,7 +14,7 @@ interface Props {
   current: Pick[];
   gridTerm: GridTerm;
   previewIndex: number | null;
-  applied: { fix: Fix; index: number } | null;
+  applied: { fix: Fix; name: string } | null;
   onPreview: (index: number | null) => void;
   onApply: (index: number) => void;
   onUndo: () => void;
@@ -23,9 +23,9 @@ interface Props {
 const hours = (h: number) => (Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`);
 
 function FixCard({
-  fix, index, current, gridTerm, previewing, applied, onPreview, onApply,
+  fix, index, title: name, current, gridTerm, previewing, applied, onPreview, onApply,
 }: {
-  fix: Fix; index: number; current: Pick[]; gridTerm: GridTerm;
+  fix: Fix; index: number; title?: string; current: Pick[]; gridTerm: GridTerm;
   previewing: boolean; applied: boolean;
   onPreview?: () => void; onApply?: () => void;
 }) {
@@ -35,9 +35,9 @@ function FixCard({
   const highlight = previewing ? "border-brand-600 ring-2 ring-brand-200" : applied ? "border-ok-700 ring-2 ring-[#bcd7f4]" : "border-line";
 
   return (
-    <article className={`rounded-xl border bg-white p-3.5 ${highlight}`} aria-label={`Fix ${index + 1}: ${title}`}>
+    <article className={`rounded-xl border bg-white p-3.5 ${highlight}`} aria-label={`${name ?? `Fix ${index + 1}`}: ${title}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold tracking-wide text-muted">FIX {index + 1}</span>
+        <span className="text-xs font-semibold tracking-wide text-muted uppercase">{name ?? `Fix ${index + 1}`}</span>
         {index === 0 && (
           <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[11px] font-semibold text-white">
             Best match for your priorities
@@ -120,7 +120,7 @@ export function SmartResolve(props: Props) {
       {applied && result.alreadyConflictFree ? (
         <>
           <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-ok-50 px-3 py-2.5">
-            <span className="text-sm font-medium text-ok-700">Fix {applied.index + 1} is on your schedule.</span>
+            <span className="text-sm font-medium text-ok-700">{applied.name} is on your schedule.</span>
             <button
               type="button"
               onClick={props.onUndo}
@@ -130,7 +130,7 @@ export function SmartResolve(props: Props) {
             </button>
           </div>
           <div className="mt-3">
-            <FixCard fix={applied.fix} index={applied.index} current={current} gridTerm={gridTerm} previewing={false} applied />
+            <FixCard fix={applied.fix} index={-1} title={applied.name} current={current} gridTerm={gridTerm} previewing={false} applied />
           </div>
         </>
       ) : result.alreadyConflictFree ? (
