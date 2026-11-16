@@ -21,6 +21,9 @@
   --color-conflict-700: #9a3412;
   --color-ok-50: #eaf3fd;
   --color-ok-700: #1d4f8c;
+  --color-good-50: #e8f6ee;
+  --color-good-200: #b5e0c5;
+  --color-good-700: #1d6a3b;
 }
 
 html,

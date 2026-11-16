@@ -16,7 +16,11 @@ export function formatRange(start: string, end: string): string {
   return `${a}–${b}`;
 }
 
-const DAY_ORDER: Day[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+export const DAY_LONG: Record<Day, string> = {
+  Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday",
+};
+
+const DAY_ORDER: Day[] =["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** Meetings grouped by time: "Tue/Thu 10:30–11:30 AM, Fri 1:30–2:30 PM". */
 export function formatMeetings(meetings: Meeting[]): string {

@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   findConflicts, generateSchedules, hasKnownTimes,
-  type Course, type Pick, type Section,
+  type Course, type Pick, type Preferences, type Section,
 } from "@slotted/engine";
+
+/** Starting priorities (same as the team's design). Editable in the Priorities dialog. */
+export const DEFAULT_PREFS: Preferences = {
+  earliestStart: "09:30",
+  minimizeGaps: true,
+  lightDay: "Fri",
+  onlyMoveLabsAndTutorials: true,
+};
 
 /** One course the student added, and which section they picked for each component. */
 export interface CourseChoice {
@@ -15,6 +23,7 @@ export interface CourseChoice {
 export interface ScheduleState {
   choices: CourseChoice[];
   locked: number[];
+  prefs: Preferences;
 }
 
 const STORAGE_KEY = "slotted:schedule:v1";
@@ -23,13 +32,15 @@ function loadSaved(): ScheduleState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as ScheduleState;
-      if (Array.isArray(parsed.choices) && Array.isArray(parsed.locked)) return parsed;
+      const parsed = JSON.parse(raw) as Partial<ScheduleState>;
+      if (Array.isArray(parsed.choices) && Array.isArray(parsed.locked)) {
+        return { choices: parsed.choices, locked: parsed.locked, prefs: { ...DEFAULT_PREFS, ...parsed.prefs } };
+      }
     }
   } catch {
     // Private window or blocked storage: start empty.
   }
-  return { choices: [], locked: [] };
+  return { choices: [], locked: [], prefs: DEFAULT_PREFS };
 }
 
 /** Everything the screens need about the student's schedule. */
@@ -108,6 +119,7 @@ export function useSchedule(catalog: Course[]) {
       const removed = prev.choices.find((c) => c.code === code);
       const removedNumbers = new Set(Object.values(removed?.picks ?? {}));
       return {
+        ...prev,
         choices: prev.choices.filter((c) => c.code !== code),
         locked: prev.locked.filter((n) => !removedNumbers.has(n)),
       };
@@ -116,6 +128,7 @@ export function useSchedule(catalog: Course[]) {
 
   const changeSection = useCallback((code: string, component: string, classNumber: number) => {
     setState((prev) => ({
+      ...prev,
       choices: prev.choices.map((c) => {
         if (c.code !== code) return c;
         return { ...c, picks: { ...c.picks, [component]: classNumber } };
@@ -148,9 +161,13 @@ export function useSchedule(catalog: Course[]) {
     }));
   }, []);
 
+  const setPrefs = useCallback((prefs: Preferences) => {
+    setState((prev) => ({ ...prev, prefs }));
+  }, []);
+
   return {
     state, byCode, picks, conflictReport, conflictedClassNumbers,
-    addCourse, removeCourse, changeSection, toggleLock, replaceSections,
+    addCourse, removeCourse, changeSection, toggleLock, replaceSections, setPrefs,
   };
 }
 

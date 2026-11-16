@@ -29,10 +29,13 @@ function Tag({ tone, children }: { tone: "conflict" | "full" | "info"; children:
 }
 
 function SectionRow({
-  course, component, section, schedule,
-}: { course: Course; component: string; section: Section; schedule: ScheduleApi }) {
+  course, component, section, schedule, isMoved, previewing,
+}: {
+  course: Course; component: string; section: Section; schedule: ScheduleApi;
+  isMoved: boolean; previewing: boolean;
+}) {
   const locked = schedule.state.locked.includes(section.class_number);
-  const conflict = schedule.conflictedClassNumbers.has(section.class_number);
+  const conflict = !previewing && schedule.conflictedClassNumbers.has(section.class_number);
   const others = course.sections.filter((s) => s.component === component && hasKnownTimes(s));
   const instructors = (section.instructors ?? []).join(", ");
   const waitlist = typeof section.waitlist === "number" ? section.waitlist : null;
@@ -45,6 +48,7 @@ function SectionRow({
           <span className="text-sm font-semibold">{sectionLabel(section)}</span>
           <span className="text-[11px] text-muted">Class {section.class_number}</span>
           {conflict && <Tag tone="conflict">Conflict</Tag>}
+          {isMoved && <Tag tone="info">Moved</Tag>}
           {section.full && <Tag tone="full">Full</Tag>}
           {waitlist !== null && waitlist > 0 && <Tag tone="info">{waitlist} on waitlist</Tag>}
         </div>
@@ -60,7 +64,7 @@ function SectionRow({
             <select
               id={selectId}
               value={section.class_number}
-              disabled={locked}
+              disabled={locked || previewing}
               onChange={(e) => schedule.changeSection(course.code, component, Number(e.target.value))}
               className="mt-1.5 w-full max-w-full truncate rounded-md border border-line bg-white px-2 py-1 text-xs disabled:opacity-60"
             >
@@ -87,8 +91,17 @@ function SectionRow({
   );
 }
 
-export function MyCourses({ schedule }: { schedule: ScheduleApi }) {
+interface Props {
+  schedule: ScheduleApi;
+  /** While previewing a fix: "COURSE|COMPONENT" -> the section it would move to. */
+  previewSections?: Map<string, Section>;
+  /** Class numbers a fix moved (or would move). */
+  moved?: Set<number>;
+}
+
+export function MyCourses({ schedule, previewSections = new Map(), moved = new Set() }: Props) {
   const { choices } = schedule.state;
+  const previewing = previewSections.size > 0;
 
   return (
     <section className="rounded-2xl border border-line bg-white p-4 shadow-sm">
@@ -140,7 +153,9 @@ export function MyCourses({ schedule }: { schedule: ScheduleApi }) {
               <div className="pl-4.5">
                 {components.map((component) => {
                   const classNumber = choice.picks[component];
-                  const section = course.sections.find((s) => s.class_number === classNumber);
+                  const section =
+                    previewSections.get(`${course.code}|${component}`) ??
+                    course.sections.find((s) => s.class_number === classNumber);
                   if (!section) {
                     return (
                       <div key={component} className="py-2">
@@ -152,7 +167,15 @@ export function MyCourses({ schedule }: { schedule: ScheduleApi }) {
                     );
                   }
                   return (
-                    <SectionRow key={component} course={course} component={component} section={section} schedule={schedule} />
+                    <SectionRow
+                      key={component}
+                      course={course}
+                      component={component}
+                      section={section}
+                      schedule={schedule}
+                      isMoved={moved.has(section.class_number)}
+                      previewing={previewing}
+                    />
                   );
                 })}
               </div>

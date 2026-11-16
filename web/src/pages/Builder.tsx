@@ -1,12 +1,16 @@
-import { hasKnownTimes, scoreSchedule, termsOverlap, type Course } from "@slotted/engine";
-import { ConflictBanner, groupConflicts } from "../components/ConflictBanner";
+import { useEffect, useMemo, useState } from "react";
+import {
+  findConflicts, hasKnownTimes, scoreSchedule, suggestFixes, termsOverlap,
+  type Course, type Fix, type Pick, type Preferences,
+} from "@slotted/engine";
+import { ConflictBanner, groupConflicts, type BannerMode } from "../components/ConflictBanner";
 import { CourseSearch } from "../components/CourseSearch";
 import { ExportButton } from "../components/ExportButton";
-import { ShuffleIcon } from "../components/icons";
 import { MyCourses } from "../components/MyCourses";
+import { SmartResolve } from "../components/SmartResolve";
 import { WeekGrid } from "../components/WeekGrid";
+import { DAY_LONG, formatTime, sectionLabel, TERM_LABELS } from "../lib/format";
 import { blocksOfPick } from "../lib/grid";
-import { formatTime, sectionLabel, TERM_LABELS } from "../lib/format";
 import type { ScheduleApi } from "../state/useSchedule";
 
 type GridTerm = "first_term" | "second_term";
@@ -21,43 +25,142 @@ function hoursText(hours: number) {
   return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
 }
 
+/** A schedule's fingerprint: its class numbers, sorted. */
+const fingerprint = (picks: Pick[]) => picks.map((p) => p.section.class_number).sort((a, b) => a - b).join(",");
+
+export function priorityLines(prefs: Preferences): string[] {
+  const lines: string[] = [];
+  if (prefs.earliestStart) lines.push(`No classes before ${formatTime(prefs.earliestStart)}`);
+  if (prefs.minimizeGaps) lines.push("Minimize downtime between classes");
+  if (prefs.lightDay) lines.push(`Keep ${DAY_LONG[prefs.lightDay]} light`);
+  if (prefs.onlyMoveLabsAndTutorials) lines.push("Only move labs and tutorials");
+  if (prefs.lunchHour) lines.push("Protect a lunch hour");
+  return lines.length > 0 ? lines : ["No priorities set"];
+}
+
 export function Builder({ courses, schedule, term }: Props) {
   const { picks, conflictReport, state } = schedule;
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [applied, setApplied] = useState<{ fix: Fix; index: number } | null>(null);
 
+  // ---- Smart Resolve ----
+  const fixResult = useMemo(
+    () => suggestFixes(courses, picks, { ...state.prefs, lockedClassNumbers: state.locked }),
+    [courses, picks, state.prefs, state.locked],
+  );
+  // How many fixes the locks are hiding: ask again without locks and count fixes that move a locked section.
+  const hiddenByLocks = useMemo(() => {
+    if (state.locked.length === 0 || fixResult.alreadyConflictFree) return 0;
+    const locked = new Set(state.locked);
+    return suggestFixes(courses, picks, { ...state.prefs, lockedClassNumbers: [] }).fixes.filter((f) =>
+      f.moves.some((m) => locked.has(m.from.class_number)),
+    ).length;
+  }, [courses, picks, state.prefs, state.locked, fixResult.alreadyConflictFree]);
+
+  // If there are no fixes, would relaxing the strict rules help at all?
+  const fixableWithoutRules = useMemo(() => {
+    if (fixResult.fixes.length > 0 || fixResult.alreadyConflictFree) return true;
+    return suggestFixes(courses, picks, { ...state.prefs, lockedClassNumbers: [], onlyMoveLabsAndTutorials: false }).fixes.length > 0;
+  }, [courses, picks, state.prefs, fixResult]);
+
+  // Any change to the schedule ends a preview.
+  useEffect(() => setPreviewIndex(null), [fixResult]);
+  // The "applied" note only holds while the schedule is still exactly that fix.
+  const appliedValid = applied && fingerprint(applied.fix.schedule) === fingerprint(picks) ? applied : null;
+
+  const preview = previewIndex !== null ? fixResult.fixes[previewIndex] : undefined;
+  const shownPicks = preview ? preview.schedule : picks;
+  const shownConflicts = preview ? findConflicts(preview.schedule).conflicts : conflictReport.conflicts;
+  const shownConflicted = useMemo(() => {
+    const set = new Set<number>();
+    for (const c of shownConflicts) {
+      set.add(c.a.section.class_number);
+      set.add(c.b.section.class_number);
+    }
+    return set;
+  }, [shownConflicts]);
+  const activeFix = preview ?? appliedValid?.fix;
+  const moved = new Set(activeFix?.moves.map((m) => m.to.class_number) ?? []);
+  const ghosts: Pick[] = preview
+    ? preview.moves.map((m) => ({ courseCode: m.courseCode, term: schedule.byCode.get(m.courseCode)!.term, section: m.from }))
+    : [];
+
+  function showWeekOnSmallScreens() {
+    if (window.innerWidth < 1024) document.getElementById("week-view")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function applyFix(index: number) {
+    const fix = fixResult.fixes[index];
+    if (!fix) return;
+    schedule.replaceSections(fix.moves.map((m) => ({ code: m.courseCode, component: m.component, classNumber: m.to.class_number })));
+    setApplied({ fix, index });
+    setPreviewIndex(null);
+    showWeekOnSmallScreens();
+  }
+
+  function undo() {
+    if (!appliedValid) return;
+    schedule.replaceSections(
+      appliedValid.fix.moves.map((m) => ({ code: m.courseCode, component: m.component, classNumber: m.from.class_number })),
+    );
+    setApplied(null);
+  }
+
+  const bannerMode: BannerMode = preview
+    ? {
+        kind: "preview",
+        fixNumber: previewIndex! + 1,
+        remaining: groupConflicts(shownConflicts).length,
+        onCancel: () => setPreviewIndex(null),
+        onApply: () => applyFix(previewIndex!),
+      }
+    : appliedValid
+      ? { kind: "applied", fixNumber: appliedValid.index + 1 }
+      : { kind: "normal" };
+
+  // ---- Week view ----
   // Only this term's classes go on the grid (full-year courses show in both).
-  const termPicks = picks.filter((p) => termsOverlap(p.term, term) && p.section.meetings.length > 0);
+  const termPicks = shownPicks.filter((p) => termsOverlap(p.term, term) && p.section.meetings.length > 0);
+  const termGhosts = ghosts.filter((p) => termsOverlap(p.term, term));
   const stats = scoreSchedule(termPicks)[term === "first_term" ? "firstTerm" : "secondTerm"];
   const classHours = termPicks.flatMap(blocksOfPick).reduce((sum, b) => sum + (b.end - b.start) / 60, 0);
 
   // Things the grid can't show.
   const online = picks.filter((p) => p.section.meetings.length === 0 && hasKnownTimes(p.section));
   const noTimes = state.choices
+    .filter((c) => Object.keys(c.picks).length === 0)
     .map((c) => schedule.byCode.get(c.code))
-    .filter((c): c is Course => !!c)
-    .filter((c) => Object.keys(state.choices.find((x) => x.code === c.code)!.picks).length === 0);
-  const otherTerm = picks.filter((p) => !termsOverlap(p.term, term));
-  const otherTermCourses = [...new Set(otherTerm.map((p) => p.courseCode))];
+    .filter((c): c is Course => !!c);
+  const otherTermCourses = [...new Set(picks.filter((p) => !termsOverlap(p.term, term)).map((p) => p.courseCode))];
 
   const colorOf = (code: string) => state.choices.find((c) => c.code === code)?.colorIndex ?? 0;
   const locked = new Set(state.locked);
+  const previewMoves = new Map(preview?.moves.map((m) => [`${m.courseCode}|${m.component}`, m.to]) ?? []);
 
   return (
-    <div className="mx-auto grid max-w-[1400px] grid-cols-[minmax(0,1fr)] gap-4 px-4 py-4 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)_minmax(260px,340px)] lg:items-start">
-      {/* Left: add + my courses */}
+    <div className="mx-auto grid max-w-[1400px] grid-cols-[minmax(0,1fr)] gap-4 px-4 py-4 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)_minmax(280px,360px)] lg:items-start">
+      {/* Left: add + my courses + priorities */}
       <div className="min-w-0 space-y-4">
         <CourseSearch
           courses={courses}
           addedCodes={new Set(state.choices.map((c) => c.code))}
           onAdd={schedule.addCourse}
         />
-        <MyCourses schedule={schedule} />
+        <MyCourses schedule={schedule} previewSections={previewMoves} moved={moved} />
+        <section className="hidden rounded-2xl border border-line bg-white p-4 shadow-sm lg:block">
+          <h2 className="font-display text-lg font-semibold">Your priorities</h2>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+            {priorityLines(state.prefs).map((l) => <li key={l}>{l}</li>)}
+          </ul>
+          <p className="mt-2 text-xs text-muted">Editable in a later step.</p>
+        </section>
       </div>
 
       {/* Middle: banner + week */}
       <div className="min-w-0 space-y-4">
-        <ConflictBanner conflicts={conflictReport.conflicts} courseCount={state.choices.length} />
+        <ConflictBanner conflicts={shownConflicts} courseCount={state.choices.length} mode={bannerMode} />
 
-        <section className="rounded-2xl border border-line bg-white shadow-sm">
+        <section id="week-view" className="scroll-mt-4 rounded-2xl border border-line bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
             <h2 className="font-display text-lg font-semibold">
               Week view <span className="text-sm font-normal text-muted">· {TERM_LABELS[term]}</span>
@@ -69,14 +172,22 @@ export function Builder({ courses, schedule, term }: Props) {
             </dl>
           </div>
           <div className="p-3">
-            <WeekGrid picks={termPicks} colorOf={colorOf} conflicted={schedule.conflictedClassNumbers} locked={locked} />
+            <WeekGrid
+              picks={termPicks}
+              colorOf={colorOf}
+              conflicted={shownConflicted}
+              locked={locked}
+              moved={moved}
+              ghosts={termGhosts}
+            />
           </div>
         </section>
 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted" aria-label="Legend">
             <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-conflict-600 bg-[#fff4ec]" />Time conflict</li>
-            <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-brand-600" />Moved by a fix</li>
+            <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-brand-700" />Moved by a fix</li>
+            <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-brand-600/40" />Where it was</li>
             <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded bg-brand-700" />Locked section</li>
           </ul>
           <ExportButton
@@ -109,28 +220,28 @@ export function Builder({ courses, schedule, term }: Props) {
         )}
       </div>
 
-      {/* Right: Smart Resolve (next step) */}
+      {/* Right: Smart Resolve */}
       <aside className="min-w-0 space-y-4">
-        <section className="rounded-2xl border border-line bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="grid size-8 place-items-center rounded-lg bg-brand-50 text-brand-700"><ShuffleIcon /></span>
-            <h2 className="font-display text-lg font-semibold">Smart Resolve</h2>
-          </div>
-          <p className="mt-2 text-sm text-muted">
-            {conflictReport.conflicts.length > 0
-              ? "Suggested fixes will appear here in the next build step."
-              : "When sections overlap, suggested fixes will appear here."}
-          </p>
-        </section>
-        <section className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+        <SmartResolve
+          result={fixResult}
+          hiddenByLocks={hiddenByLocks}
+          fixableWithoutRules={fixableWithoutRules}
+          current={picks}
+          gridTerm={term}
+          previewIndex={previewIndex}
+          applied={appliedValid}
+          onPreview={(i) => {
+            setPreviewIndex(i);
+            if (i !== null) showWeekOnSmallScreens();
+          }}
+          onApply={applyFix}
+          onUndo={undo}
+        />
+        <section className="rounded-2xl border border-line bg-white p-4 shadow-sm lg:hidden">
           <h2 className="font-display text-lg font-semibold">Your priorities</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-            <li>No classes before 9:30 AM</li>
-            <li>Minimize downtime between classes</li>
-            <li>Keep Friday light</li>
-            <li>Only move labs and tutorials</li>
+            {priorityLines(state.prefs).map((l) => <li key={l}>{l}</li>)}
           </ul>
-          <p className="mt-2 text-xs text-muted">Editable in a later step.</p>
         </section>
       </aside>
     </div>
