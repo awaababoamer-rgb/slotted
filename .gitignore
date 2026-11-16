@@ -3,6 +3,13 @@
 .env.*
 !.env.example
 
+# Draft My Schedule login sessions, cookies and logs - never commit
+.dms-session/
+.dms-logs/
+*storage_state*.json
+*cookies*.json
+*.har
+
 # Python
 __pycache__/
 *.pyc
