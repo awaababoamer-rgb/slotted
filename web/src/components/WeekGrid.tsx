@@ -1,0 +1,114 @@
+import { blocksOfPick, layoutDay, type GridBlock } from "../lib/grid";
+import { colorFor } from "../lib/colors";
+import { formatRange, sectionLabel } from "../lib/format";
+import type { Pick } from "@slotted/engine";
+import { LockIcon } from "./icons";
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"] as const;
+const PX_PER_MIN = 0.9; // 54px per hour
+
+interface Props {
+  picks: Pick[];
+  colorOf: (courseCode: string) => number;
+  conflicted: Set<number>;
+  locked: Set<number>;
+}
+
+function hourLabel(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  return `${h % 12 === 0 ? 12 : h % 12} ${h >= 12 ? "PM" : "AM"}`;
+}
+
+/** Monday–Friday week grid. Each meeting is its own block, so a 2-hour Monday and 1-hour Wednesday both show correctly. */
+export function WeekGrid({ picks, colorOf, conflicted, locked }: Props) {
+  const blocks: GridBlock[] = picks.flatMap(blocksOfPick);
+
+  // Show 9 AM–6 PM at least, growing to fit early or late classes.
+  const earliest = Math.min(9 * 60, ...blocks.map((b) => b.start));
+  const latest = Math.max(18 * 60, ...blocks.map((b) => b.end));
+  const first = Math.floor(earliest / 60) * 60;
+  const last = Math.ceil(latest / 60) * 60;
+  const hours = Array.from({ length: (last - first) / 60 }, (_, i) => first + i * 60);
+  const height = (last - first) * PX_PER_MIN;
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-[560px]">
+        <div className="grid grid-cols-[3.25rem_repeat(5,1fr)] border-b border-line pb-2 text-center text-sm font-semibold">
+          <span />
+          {DAYS.map((d) => <span key={d}>{d}</span>)}
+        </div>
+        <div className="relative grid grid-cols-[3.25rem_repeat(5,1fr)]" style={{ height }}>
+          {/* hour labels + lines */}
+          <div className="relative">
+            {hours.map((h) => (
+              <span
+                key={h}
+                className="absolute right-2 -translate-y-1/2 text-[11px] text-muted"
+                style={{ top: (h - first) * PX_PER_MIN }}
+              >
+                {hourLabel(h)}
+              </span>
+            ))}
+          </div>
+          {hours.map((h) => (
+            <div
+              key={`line-${h}`}
+              className="pointer-events-none absolute right-0 left-[3.25rem] border-t border-line"
+              style={{ top: (h - first) * PX_PER_MIN }}
+              aria-hidden
+            />
+          ))}
+
+          {DAYS.map((day) => (
+            <div key={day} className="relative border-l border-line" role="list" aria-label={`${day} classes`}>
+              {layoutDay(blocks.filter((b) => b.day === day)).map(({ block, lane, lanes }) => {
+                const color = colorFor(colorOf(block.pick.courseCode));
+                const isConflict = conflicted.has(block.pick.section.class_number);
+                const isLocked = locked.has(block.pick.section.class_number);
+                const top = (block.start - first) * PX_PER_MIN;
+                const blockHeight = (block.end - block.start) * PX_PER_MIN;
+                const section = block.pick.section;
+                const room = block.location || "Room TBA";
+                const who = (section.instructors ?? []).join(", ");
+                const tooltip = [
+                  `${block.pick.courseCode} ${sectionLabel(section)}`,
+                  `${day} ${formatRange(block.startText, block.endText)}`,
+                  room, who, section.full ? "Full" : "", isConflict ? "Time conflict" : "", isLocked ? "Locked" : "",
+                ].filter(Boolean).join("\n");
+                return (
+                  <div
+                    key={`${section.class_number}-${block.start}`}
+                    role="listitem"
+                    title={tooltip}
+                    aria-label={tooltip.replaceAll("\n", ", ")}
+                    className={`absolute overflow-hidden rounded-lg px-1.5 py-1 text-[11px] leading-tight shadow-sm ${
+                      isConflict ? "border-2 border-conflict-600" : "border"
+                    }`}
+                    style={{
+                      top: top + 1,
+                      height: blockHeight - 2,
+                      left: `calc(${(lane / lanes) * 100}% + 3px)`,
+                      width: `calc(${100 / lanes}% - 6px)`,
+                      background: isConflict ? "#fff4ec" : color.bg,
+                      borderColor: isConflict ? undefined : color.border,
+                      color: color.text,
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-1">
+                      <span className="font-bold">{block.pick.courseCode.replace(/^COMPSCI /, "CS ")}</span>
+                      {isLocked && <LockIcon className="size-3 shrink-0" />}
+                    </div>
+                    <div>{sectionLabel(section)}</div>
+                    {blockHeight > 44 && <div>{formatRange(block.startText, block.endText)}</div>}
+                    {blockHeight > 58 && <div className="truncate opacity-80">{room}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
