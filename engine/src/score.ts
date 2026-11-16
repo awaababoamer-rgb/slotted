@@ -17,6 +17,51 @@ const COST_EARLY_START = 60; // plus the minutes before the preferred start
 const COST_LUNCH_BROKEN = 90;
 const COST_AVOIDED_SECTION = 1000; // full / restricted sections sink to the bottom
 
+const COST_LAB_OTHER_DAY = 45;
+
+/** The longest stretch with no class inside [from, to). Blocks must be sorted by start. */
+function longestFreeStretch(blocks: Block[], from: number, to: number): number {
+  let longest = 0;
+  let cursor = from;
+  for (const b of blocks) {
+    if (b.end <= cursor) continue;
+    if (b.start >= to) break;
+    longest = Math.max(longest, Math.min(b.start, to) - cursor);
+    cursor = Math.max(cursor, b.end);
+  }
+  return Math.max(longest, to - cursor);
+}
+
+/**
+ * "Labs on the same day as lecture": each lab/tutorial meeting should fall on
+ * a day when that course already has a lecture (fewer trips to campus).
+ */
+function labsOnOtherDays(schedule: Pick[]): { broken: BrokenPreference[]; cost: number } {
+  const broken: BrokenPreference[] = [];
+  const lectureDays = new Map<string, Set<Day>>();
+  for (const p of schedule) {
+    if (p.section.component !== "LEC") continue;
+    const days = lectureDays.get(p.courseCode) ?? new Set<Day>();
+    for (const b of blocksOf(p.section)) days.add(b.day);
+    lectureDays.set(p.courseCode, days);
+  }
+  for (const p of schedule) {
+    if (p.section.component === "LEC") continue;
+    const days = lectureDays.get(p.courseCode);
+    if (!days || days.size === 0) continue; // online or no lecture: nothing to match
+    for (const b of blocksOf(p.section)) {
+      if (days.has(b.day)) continue;
+      broken.push({
+        preference: "labsSameDay",
+        term: p.term === "second_term" ? "second_term" : "first_term",
+        day: b.day,
+        detail: `${p.courseCode} ${p.section.component} ${p.section.section} is on ${DAY_NAMES[b.day]}, but its lecture isn't`,
+      });
+    }
+  }
+  return { broken, cost: broken.length * COST_LAB_OTHER_DAY };
+}
+
 interface TermResult {
   stats: TermStats;
   broken: BrokenPreference[];
@@ -46,7 +91,12 @@ function scoreTerm(
 
   const earliestOk = prefs.earliestStart ? toMinutes(prefs.earliestStart) : null;
   const lunch = prefs.lunchHour
-    ? { start: toMinutes(prefs.lunchHour.start), end: toMinutes(prefs.lunchHour.end) }
+    ? {
+        start: toMinutes(prefs.lunchHour.start),
+        end: toMinutes(prefs.lunchHour.end),
+        // How long the free stretch must be (default 1 hour, never longer than the window).
+        need: Math.min(prefs.lunchHour.minutes ?? 60, toMinutes(prefs.lunchHour.end) - toMinutes(prefs.lunchHour.start)),
+      }
     : null;
 
   for (const day of DAYS) {
@@ -81,10 +131,10 @@ function scoreTerm(
         });
       }
     }
-    if (lunch && blocks.some((b) => b.start < lunch.end && lunch.start < b.end)) {
+    if (lunch && longestFreeStretch(blocks, lunch.start, lunch.end) < lunch.need) {
       broken.push({
         preference: "lunchHour", term, day,
-        detail: `Class during lunch (${prefs.lunchHour!.start}-${prefs.lunchHour!.end}) on ${DAY_NAMES[day]}`,
+        detail: `No free ${lunch.need} minutes between ${prefs.lunchHour!.start} and ${prefs.lunchHour!.end} on ${DAY_NAMES[day]}`,
       });
       cost += COST_LUNCH_BROKEN;
     }
@@ -128,6 +178,7 @@ function later(a: string | null, b: string | null): string | null {
 export function scoreSchedule(schedule: Pick[], preferences: Preferences = {}): ScheduleScore {
   const first = scoreTerm(schedule, "first_term", preferences);
   const second = scoreTerm(schedule, "second_term", preferences);
+  const labs = preferences.labsSameDayAsLecture ? labsOnOtherDays(schedule) : { broken: [], cost: 0 };
 
   const flags: SectionFlag[] = [];
   for (const pick of schedule) {
@@ -149,9 +200,9 @@ export function scoreSchedule(schedule: Pick[], preferences: Preferences = {}): 
       latestEnd: later(first.stats.latestEnd, second.stats.latestEnd),
       fridayClasses: Math.max(first.stats.fridayClasses, second.stats.fridayClasses),
     },
-    brokenPreferences: [...first.broken, ...second.broken],
+    brokenPreferences: [...first.broken, ...second.broken, ...labs.broken],
     flags,
     timesNotAvailable: schedule.filter((p) => !hasKnownTimes(p.section)),
-    cost: first.cost + second.cost + flags.length * COST_AVOIDED_SECTION,
+    cost: first.cost + second.cost + labs.cost + flags.length * COST_AVOIDED_SECTION,
   };
 }

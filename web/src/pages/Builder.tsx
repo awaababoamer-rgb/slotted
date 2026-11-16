@@ -19,6 +19,7 @@ interface Props {
   courses: Course[];
   schedule: ScheduleApi;
   term: GridTerm;
+  onEditPriorities: () => void;
 }
 
 function hoursText(hours: number) {
@@ -27,15 +28,34 @@ function hoursText(hours: number) {
 
 export function priorityLines(prefs: Preferences): string[] {
   const lines: string[] = [];
-  if (prefs.earliestStart) lines.push(`No classes before ${formatTime(prefs.earliestStart)}`);
+  if (prefs.earliestStart && prefs.earliestStart > "08:30") lines.push(`No classes before ${formatTime(prefs.earliestStart)}`);
   if (prefs.minimizeGaps) lines.push("Minimize downtime between classes");
   if (prefs.lightDay) lines.push(`Keep ${DAY_LONG[prefs.lightDay]} light`);
   if (prefs.onlyMoveLabsAndTutorials) lines.push("Only move labs and tutorials");
-  if (prefs.lunchHour) lines.push("Protect a lunch hour");
+  if (prefs.lunchHour) {
+    lines.push(`Free hour between ${formatTime(prefs.lunchHour.start)} and ${formatTime(prefs.lunchHour.end)}`);
+  }
+  if (prefs.labsSameDayAsLecture) lines.push("Labs on the same day as lecture");
   return lines.length > 0 ? lines : ["No priorities set"];
 }
 
-export function Builder({ courses, schedule, term }: Props) {
+function PrioritiesCard({ prefs, onEdit, className }: { prefs: Preferences; onEdit: () => void; className: string }) {
+  return (
+    <section className={`rounded-2xl border border-line bg-white p-4 shadow-sm ${className}`}>
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-display text-lg font-semibold">Your priorities</h2>
+        <button type="button" onClick={onEdit} className="text-sm font-semibold text-brand-700 hover:underline">
+          Edit
+        </button>
+      </div>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+        {priorityLines(prefs).map((l) => <li key={l}>{l}</li>)}
+      </ul>
+    </section>
+  );
+}
+
+export function Builder({ courses, schedule, term, onEditPriorities }: Props) {
   const { picks, conflictReport, state } = schedule;
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -133,13 +153,7 @@ export function Builder({ courses, schedule, term }: Props) {
           onAdd={schedule.addCourse}
         />
         <MyCourses schedule={schedule} previewSections={previewMoves} moved={moved} />
-        <section className="hidden rounded-2xl border border-line bg-white p-4 shadow-sm lg:block">
-          <h2 className="font-display text-lg font-semibold">Your priorities</h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-            {priorityLines(state.prefs).map((l) => <li key={l}>{l}</li>)}
-          </ul>
-          <p className="mt-2 text-xs text-muted">Editable in a later step.</p>
-        </section>
+        <PrioritiesCard prefs={state.prefs} onEdit={onEditPriorities} className="hidden lg:block" />
       </div>
 
       {/* Middle: banner + week */}
@@ -231,12 +245,7 @@ export function Builder({ courses, schedule, term }: Props) {
             Compare every fix as a full week <span aria-hidden>→</span>
           </a>
         )}
-        <section className="rounded-2xl border border-line bg-white p-4 shadow-sm lg:hidden">
-          <h2 className="font-display text-lg font-semibold">Your priorities</h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-            {priorityLines(state.prefs).map((l) => <li key={l}>{l}</li>)}
-          </ul>
-        </section>
+        <PrioritiesCard prefs={state.prefs} onEdit={onEditPriorities} className="lg:hidden" />
       </aside>
     </div>
   );

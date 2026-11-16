@@ -15,6 +15,7 @@ interface Props {
   schedule: ScheduleApi;
   term: GridTerm;
   onUseWeek: (option: WeekOption) => void;
+  onEditPriorities: () => void;
 }
 
 const hours = (h: number) => (Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`);
@@ -30,7 +31,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "ba
   );
 }
 
-export function Compare({ courses, schedule, term, onUseWeek }: Props) {
+export function Compare({ courses, schedule, term, onUseWeek, onEditPriorities }: Props) {
   const { picks, state } = schedule;
   const { kind, options, reason } = useMemo(
     () => buildWeekOptions(courses, picks, state.prefs, state.locked, term),
@@ -192,12 +193,14 @@ export function Compare({ courses, schedule, term, onUseWeek }: Props) {
             Showing your {TERM_LABELS[shownTerm]} week.
           </p>
         </div>
-        <span
-          className="cursor-not-allowed rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-muted/70"
-          title="Coming in the next step"
+        <button
+          type="button"
+          onClick={onEditPriorities}
+          aria-haspopup="dialog"
+          className="rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold hover:border-brand-200 hover:text-brand-700"
         >
           Change ranking priorities
-        </span>
+        </button>
       </div>
 
       {reason && options.length === 0 && (

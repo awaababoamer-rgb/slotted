@@ -47,8 +47,14 @@ export interface Preferences {
   lightDay?: Day;
   /** Soft: rank schedules with fewer gaps higher. */
   minimizeGaps?: boolean;
-  /** Soft: an hour to keep free every day, e.g. { start: "12:30", end: "13:30" }. */
-  lunchHour?: { start: string; end: string };
+  /**
+   * Soft: keep a free stretch somewhere in this window on every day with class,
+   * e.g. { start: "11:30", end: "13:30" } = at least one free hour between 11:30 and 1:30.
+   * `minutes` is how long the free stretch must be (default 60).
+   */
+  lunchHour?: { start: string; end: string; minutes?: number };
+  /** Soft: labs and tutorials on a day the course already has a lecture. */
+  labsSameDayAsLecture?: boolean;
   /** STRICT (fixes only): never move a lecture. */
   onlyMoveLabsAndTutorials?: boolean;
   /** STRICT: class numbers the student does not want changed. */
@@ -79,7 +85,7 @@ export interface TermStats {
 }
 
 export interface BrokenPreference {
-  preference: "earliestStart" | "lightDay" | "lunchHour";
+  preference: "earliestStart" | "lightDay" | "lunchHour" | "labsSameDay";
   term: "first_term" | "second_term";
   day: Day;
   detail: string;

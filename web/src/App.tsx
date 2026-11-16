@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { CalendarIcon } from "./components/icons";
 import { loadCatalog, type Catalog } from "./data/catalog";
 import { formatDate, TERM_LABELS } from "./lib/format";
+import type { Preferences } from "@slotted/engine";
+import { PrioritiesDialog } from "./components/PrioritiesDialog";
 import type { WeekOption } from "./lib/weekOptions";
 import { Builder } from "./pages/Builder";
 import { Compare } from "./pages/Compare";
@@ -36,6 +38,15 @@ function Shell({ catalog }: { catalog: Catalog }) {
   const schedule = useSchedule(catalog.courses);
   const [term, setTerm] = useState<GridTerm>("first_term");
   const [page, setPage] = useState<Page>(pageFromHash);
+  const [prioritiesOpen, setPrioritiesOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  function savePriorities(prefs: Preferences) {
+    schedule.setPrefs(prefs);
+    setPrioritiesOpen(false);
+    setNotice("Priorities saved. Fixes and weeks are re-ranked.");
+    window.setTimeout(() => setNotice(null), 4000);
+  }
 
   // Simple page switching with #builder / #compare in the address bar (back button works).
   useEffect(() => {
@@ -79,7 +90,16 @@ function Shell({ catalog }: { catalog: Catalog }) {
           <nav aria-label="Main" className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto">
             {tab("builder", "Builder")}
             {tab("compare", "Compare weeks")}
-            <span className="cursor-not-allowed rounded-lg px-3 py-1.5 text-sm text-muted/60" title="Coming in a later step">Priorities</span>
+            <button
+              type="button"
+              onClick={() => setPrioritiesOpen(true)}
+              aria-haspopup="dialog"
+              className={`rounded-lg px-3 py-1.5 text-sm whitespace-nowrap ${
+                prioritiesOpen ? "bg-brand-100 font-semibold text-brand-700" : "text-muted hover:text-ink"
+              }`}
+            >
+              Priorities
+            </button>
           </nav>
           <label className="ml-auto flex items-center gap-2 text-sm text-muted">
             Term
@@ -97,11 +117,38 @@ function Shell({ catalog }: { catalog: Catalog }) {
 
       <main className="flex-1">
         {page === "compare" ? (
-          <Compare courses={catalog.courses} schedule={schedule} term={term} onUseWeek={chooseWeek} />
+          <Compare
+            courses={catalog.courses}
+            schedule={schedule}
+            term={term}
+            onUseWeek={chooseWeek}
+            onEditPriorities={() => setPrioritiesOpen(true)}
+          />
         ) : (
-          <Builder courses={catalog.courses} schedule={schedule} term={term} />
+          <Builder
+            courses={catalog.courses}
+            schedule={schedule}
+            term={term}
+            onEditPriorities={() => setPrioritiesOpen(true)}
+          />
         )}
       </main>
+
+      <PrioritiesDialog
+        open={prioritiesOpen}
+        prefs={schedule.state.prefs}
+        onSave={savePriorities}
+        onClose={() => setPrioritiesOpen(false)}
+      />
+      <div
+        role="status"
+        aria-live="polite"
+        className={`fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-xl bg-ink px-4 py-2.5 text-sm text-white shadow-lg transition-opacity ${
+          notice ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
+        {notice}
+      </div>
 
       <footer className="border-t border-line bg-white">
         <div className="mx-auto flex max-w-[1400px] flex-wrap justify-between gap-2 px-4 py-3 text-xs text-muted">

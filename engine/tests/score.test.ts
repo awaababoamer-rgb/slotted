@@ -42,6 +42,36 @@ describe("scoreSchedule", () => {
     ]);
   });
 
+  it("keeps lunch protected if there is a free hour anywhere in the window", () => {
+    // Window 11:30–1:30. Monday: 1020A ends 11:30, MATH starts 12:30, so 11:30–12:30 is free.
+    // Wednesday: 1020A ends 10:30, so 10:30–12:30 is free. Friday: free until 12:30.
+    const score = scoreSchedule(schedule, { lunchHour: { start: "11:30", end: "13:30" } });
+    expect(score.brokenPreferences).toEqual([]);
+  });
+
+  it("breaks lunch when the whole window is booked", () => {
+    // COMPSCI 2210A LEC 002 is Wed 11:30–12:30; COMPSCI 2208A LAB 004 is Wed 12:30–1:30.
+    const busy = [pick("COMPSCI 2210A", "LEC", "002"), pick("COMPSCI 2208A", "LAB", "004")];
+    const broken = scoreSchedule(busy, { lunchHour: { start: "11:30", end: "13:30" } }).brokenPreferences;
+    expect(broken.map((b) => `${b.preference} ${b.day}`)).toEqual(["lunchHour Wed"]);
+    expect(broken[0].detail).toBe("No free 60 minutes between 11:30 and 13:30 on Wednesday");
+  });
+
+  it("reports labs that aren't on a lecture day", () => {
+    // COMPSCI 2208A: lecture Tue/Thu, tutorial Thu (fine), lab Wed (not a lecture day).
+    const course = [
+      pick("COMPSCI 2208A", "LEC", "001"),
+      pick("COMPSCI 2208A", "TUT", "002"),
+      pick("COMPSCI 2208A", "LAB", "004"),
+    ];
+    const off = scoreSchedule(course).brokenPreferences;
+    expect(off).toEqual([]); // preference not switched on
+    const on = scoreSchedule(course, { labsSameDayAsLecture: true });
+    expect(on.brokenPreferences).toHaveLength(1);
+    expect(on.brokenPreferences[0]).toMatchObject({ preference: "labsSameDay", day: "Wed" });
+    expect(on.cost).toBeGreaterThan(scoreSchedule(course).cost);
+  });
+
   it("reports a light day as broken only when it has more than 2 hours of class", () => {
     // Friday has 1 hour: fine. Monday has 3 hours: broken.
     expect(scoreSchedule(schedule, { lightDay: "Fri" }).brokenPreferences).toEqual([]);
