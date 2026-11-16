@@ -12,7 +12,13 @@ export default defineConfig({
     },
   },
   server: {
-    // Allow reading ../engine and ../data/courses.json from outside web/.
-    fs: { allow: [".."] },
+    // Outside web/, the dev server may only read ../engine. NOT ../data: course data
+    // must only come from Supabase, for signed-in users.
+    fs: {
+      allow: [
+        fileURLToPath(new URL(".", import.meta.url)),
+        fileURLToPath(new URL("../engine", import.meta.url)),
+      ],
+    },
   },
 });

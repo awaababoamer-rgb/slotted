@@ -6,6 +6,11 @@
 # Draft My Schedule login sessions, cookies and logs - never commit
 .dms-session/
 .dms-logs/
+
+# Course data includes Draft My Schedule times/rooms/instructors (signed-in students only).
+# It lives in Supabase now, readable only when signed in. Never commit it.
+data/courses.json
+data/*.json
 *storage_state*.json
 *cookies*.json
 *.har

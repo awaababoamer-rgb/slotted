@@ -1,31 +1,70 @@
 import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { SignIn } from "./auth/SignIn";
+import { useSession } from "./auth/useSession";
 import { CalendarIcon } from "./components/icons";
+import { PlanBar } from "./components/PlanBar";
 import { loadCatalog, type Catalog } from "./data/catalog";
+import { supabase, supabaseConfigured } from "./data/supabase";
 import { formatDate, TERM_LABELS } from "./lib/format";
 import type { Preferences } from "@slotted/engine";
 import { PrioritiesDialog } from "./components/PrioritiesDialog";
 import type { WeekOption } from "./lib/weekOptions";
 import { Builder } from "./pages/Builder";
 import { Compare } from "./pages/Compare";
-import { useSchedule } from "./state/useSchedule";
+import { storageKeyFor, useSchedule } from "./state/useSchedule";
 
 type GridTerm = "first_term" | "second_term";
 
+function Centered({ children }: { children: React.ReactNode }) {
+  return <div className="grid min-h-screen place-items-center p-8 text-center">{children}</div>;
+}
+
 export function App() {
+  const { session, loading } = useSession();
+
+  if (!supabaseConfigured) {
+    return (
+      <Centered>
+        <div className="max-w-md">
+          <h1 className="font-display text-2xl font-bold">Slotted isn't connected yet</h1>
+          <p className="mt-2 text-muted">
+            Create <code>web/.env.local</code> from <code>web/.env.example</code> with your Supabase URL and
+            publishable key, then restart the dev server.
+          </p>
+        </div>
+      </Centered>
+    );
+  }
+  if (loading) return <Centered><p className="text-muted" role="status">Loading…</p></Centered>;
+  if (!session) return <SignIn />;
+  // key: a different person signing in gets a completely fresh app.
+  return <SignedIn key={session.user.id} session={session} />;
+}
+
+/** Course data is only fetched after sign-in; the database refuses it otherwise. */
+function SignedIn({ session }: { session: Session }) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadCatalog().then(setCatalog).catch((e: unknown) => setError(String(e)));
+    loadCatalog().then(setCatalog).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   if (error) {
-    return <p className="p-8 text-conflict-700">Couldn't load course data: {error}</p>;
+    return (
+      <Centered>
+        <div className="max-w-md">
+          <p className="text-conflict-700">Couldn't load course data: {error}</p>
+          <button type="button" onClick={() => void supabase?.auth.signOut()} className="mt-4 rounded-lg border border-line px-4 py-2 font-semibold">
+            Sign out
+          </button>
+        </div>
+      </Centered>
+    );
   }
-  if (!catalog) {
-    return <p className="p-8 text-muted" role="status">Loading courses…</p>;
-  }
-  return <Shell catalog={catalog} />;
+  if (!catalog) return <Centered><p className="text-muted" role="status">Loading courses…</p></Centered>;
+  return <Shell catalog={catalog} session={session} />;
 }
 
 type Page = "builder" | "compare";
@@ -34,8 +73,8 @@ function pageFromHash(): Page {
   return window.location.hash === "#compare" ? "compare" : "builder";
 }
 
-function Shell({ catalog }: { catalog: Catalog }) {
-  const schedule = useSchedule(catalog.courses);
+function Shell({ catalog, session }: { catalog: Catalog; session: Session }) {
+  const schedule = useSchedule(catalog.courses, storageKeyFor(session.user.id));
   const [term, setTerm] = useState<GridTerm>("first_term");
   const [page, setPage] = useState<Page>(pageFromHash);
   const [prioritiesOpen, setPrioritiesOpen] = useState(false);
@@ -112,8 +151,19 @@ function Shell({ catalog }: { catalog: Catalog }) {
               <option value="second_term">{TERM_LABELS.second_term}</option>
             </select>
           </label>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="hidden max-w-[14rem] truncate text-muted md:inline" title={session.user.email}>{session.user.email}</span>
+            <button
+              type="button"
+              onClick={() => void supabase?.auth.signOut()}
+              className="rounded-lg border border-line px-3 py-1.5 font-semibold hover:border-brand-200"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
+      <PlanBar schedule={schedule} userId={session.user.id} />
 
       <main className="flex-1">
         {page === "compare" ? (

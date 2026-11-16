@@ -37,11 +37,16 @@ export interface ScheduleState {
   prefs: Preferences;
 }
 
-const STORAGE_KEY = "slotted:schedule:v1";
+/** The working copy is kept per signed-in user, so people sharing a computer don't see each other's. */
+export function storageKeyFor(userId: string) {
+  return `slotted:schedule:v1:${userId}`;
+}
 
-function loadSaved(): ScheduleState {
+export const EMPTY_STATE: ScheduleState = { choices: [], locked: [], prefs: DEFAULT_PREFS };
+
+function loadSaved(storageKey: string): ScheduleState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<ScheduleState>;
       if (Array.isArray(parsed.choices) && Array.isArray(parsed.locked)) {
@@ -51,20 +56,29 @@ function loadSaved(): ScheduleState {
   } catch {
     // Private window or blocked storage: start empty.
   }
-  return { choices: [], locked: [], prefs: DEFAULT_PREFS };
+  return EMPTY_STATE;
 }
 
 /** Everything the screens need about the student's schedule. */
-export function useSchedule(catalog: Course[]) {
-  const [state, setState] = useState<ScheduleState>(loadSaved);
+export function useSchedule(catalog: Course[], storageKey: string) {
+  const [state, setState] = useState<ScheduleState>(() => loadSaved(storageKey));
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(storageKey, JSON.stringify(state));
     } catch {
       // Ignore: saving is a convenience only.
     }
-  }, [state]);
+  }, [state, storageKey]);
+
+  /** Replace everything at once (opening a saved plan). */
+  const replaceState = useCallback((next: ScheduleState) => {
+    setState({
+      choices: Array.isArray(next.choices) ? next.choices : [],
+      locked: Array.isArray(next.locked) ? next.locked : [],
+      prefs: { ...DEFAULT_PREFS, ...next.prefs },
+    });
+  }, []);
 
   const byCode = useMemo(() => new Map(catalog.map((c) => [c.code, c])), [catalog]);
 
@@ -199,7 +213,7 @@ export function useSchedule(catalog: Course[]) {
   return {
     state, byCode, picks, conflictReport, conflictedClassNumbers,
     addCourse, removeCourse, changeSection, toggleLock, replaceSections, setPrefs,
-    applied, applyChange, undoApplied,
+    applied, applyChange, undoApplied, replaceState,
   };
 }
 
