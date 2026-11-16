@@ -20,36 +20,44 @@ Supabase's dashboard changes now and then; if a button has moved, look for the s
 3. Click **Run**. You should see "Success. No rows returned."
 4. Check: **Table Editor** now lists `courses`, `sections`, `catalog_meta`, `saved_schedules`, with no red "Unrestricted" label.
 
-## 3. Sign-in by email link (no passwords)
+## 3. Sign-in by emailed code (no passwords)
 
-Students type their @uwo.ca email and get a one-time **sign-in link**. Supabase's built-in emails already send that link, so no email templates or custom sender are needed for testing.
+Students type their @uwo.ca email, get a **6-digit code** by email, and type it into Slotted.
+We use codes, not links, because Western's Outlook scans links before students click them, which "uses up" one-time links.
 
-1. **Authentication** → **Sign In / Providers**:
-   - **Email**: enabled. **Confirm email**: ON.
-   - **Allow new users to sign up**: ON.
-   - **Allow anonymous sign-ins**: OFF. **Phone** and all other providers: OFF.
-2. **Authentication** → **URL Configuration** (tells Supabase where the link should send people back to):
-   - **Site URL:** `http://localhost:5173`
-   - **Redirect URLs** → **Add URL**: `http://localhost:5173/**`
-   - When the site is published, add its real address here too (e.g. `https://slotted.vercel.app/**`).
-   - **Save**.
+### 3a. Connect an email sender (Brevo, free)
+
+Supabase's built-in email sender only sends ~2 emails per hour and won't let you edit the email text, so connect your own:
+
+1. Sign up at **brevo.com** with the team address (`slotted.team@gmail.com`).
+2. **Senders & IP** → **Senders** → add `slotted.team@gmail.com` and confirm it from the email Brevo sends.
+3. **SMTP & API** → **SMTP**: note the server (`smtp-relay.brevo.com`), port (`587`) and **login**, and **generate an SMTP key**.
+   The SMTP key is a password: never put it in git, a project file, or a chat.
+4. Supabase: **Authentication** → **Emails** → **SMTP Settings** → **Enable custom SMTP**:
+   host `smtp-relay.brevo.com`, port `587`, username = the Brevo **login**, password = the **SMTP key**,
+   sender email `slotted.team@gmail.com`, sender name `Slotted` → **Save**. Wait ~2 minutes before testing.
+5. **Authentication** → **Rate Limits** → raise **emails sent per hour** (e.g. 100). Brevo's free plan allows 300/day.
+
+(Gmail SMTP also works, but needs 2-Step Verification and an "app password", which new Google accounts may not offer.)
+
+### 3b. Sign-in settings and email templates
+
+1. **Authentication** → **Sign In / Providers**: **Email** enabled, **Confirm email** ON, **Allow new users to sign up** ON,
+   **anonymous sign-ins** OFF, **Phone** and all other providers OFF.
+2. **Authentication** → **Emails** → **Templates**: edit **both** "Confirm signup" and "Magic Link":
+   - **Subject:** `Your Slotted sign-in code`
+   - **Body:**
+     ```html
+     <h2>Your Slotted sign-in code</h2>
+     <p>Enter this code in Slotted to sign in:</p>
+     <p style="font-size:28px;font-weight:bold;letter-spacing:4px">{{ .Token }}</p>
+     <p>If you didn't ask for this, you can ignore this email.</p>
+     ```
+   - **Save** each. `{{ .Token }}` is where the code goes. (New users get "Confirm signup"; returning users get "Magic Link".)
+3. **Authentication** → **URL Configuration** → **Site URL**: the published address (e.g. `https://slotted-planner.vercel.app`).
+   Codes don't use redirects, but this keeps any Supabase email pointing at the real site, not `localhost`.
 
 The @uwo.ca rule is enforced by the database (the SQL in step 2), so other addresses are rejected even if someone skips the website.
-
-**Limits of Supabase's built-in email sender** (fine for testing, not for real students):
-- It sends only a few emails per hour.
-- It may only deliver to email addresses of your Supabase **team** members. If sign-in emails don't arrive, invite each tester's @uwo.ca address: **Organization settings** → **Team** → **Invite**.
-- Western's uwo.ca mail (Outlook) may scan links before the student opens them, which can "use up" the one-time link. If students often see "link expired", switch to sign-in **codes** (below).
-
-### Later: a custom email sender (needed for real students, or for sign-in codes)
-
-Supabase only lets you edit email templates once you connect your own sender (SMTP). For the competition, a **team Gmail account** works (not anyone's personal one):
-
-1. In that Gmail account: **myaccount.google.com** → **Security** → turn on **2-Step Verification**.
-2. **myaccount.google.com/apppasswords** → name it `Supabase Slotted` → **Create**. Google shows a 16-letter **app password**. Never put it in git, a project file, or a chat. If it leaks, delete it there and make a new one.
-3. Supabase: **Authentication** → **Emails** → **SMTP Settings** → **Enable custom SMTP**: sender email and username = the team Gmail address, sender name `Slotted`, host `smtp.gmail.com`, port `587`, password = the app password. **Save**.
-
-Gmail allows ~500 emails/day. For a real launch, a sender like **Resend** with your own domain looks more official. Switching to codes also needs a small code change in `web/src/auth/SignIn.tsx` (git history has a code version).
 
 ## 4. Copy the keys into local files (never into git or chat)
 
