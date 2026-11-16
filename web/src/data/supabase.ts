@@ -11,7 +11,9 @@ export const supabaseConfigured = Boolean(url && key);
 
 export const supabase: SupabaseClient | null = supabaseConfigured
   ? createClient(url!, key!, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      // detectSessionInUrl: when a student clicks the sign-in link in their email,
+      // Supabase sends them back here with the session in the address; this reads it.
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" },
     })
   : null;
 
