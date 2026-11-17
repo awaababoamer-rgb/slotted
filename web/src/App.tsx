@@ -29,6 +29,21 @@ function Centered({ children }: { children: React.ReactNode }) {
   return <div className="grid min-h-screen place-items-center p-8 text-center">{children}</div>;
 }
 
+/** Branded loading screen. */
+function Loading({ text }: { text: string }) {
+  return (
+    <Centered>
+      <div role="status" className="flex flex-col items-center gap-4">
+        <span className="grid size-12 animate-pulse place-items-center rounded-xl bg-brand-700 text-white motion-reduce:animate-none">
+          <CalendarIcon className="size-6" />
+        </span>
+        <p className="font-display text-lg font-semibold">Slotted</p>
+        <p className="text-sm text-muted">{text}</p>
+      </div>
+    </Centered>
+  );
+}
+
 export function App() {
   const { session, loading } = useSession();
 
@@ -45,7 +60,7 @@ export function App() {
       </Centered>
     );
   }
-  if (loading) return <Centered><p className="text-muted" role="status">Loading…</p></Centered>;
+  if (loading) return <Loading text="Getting things ready…" />;
   if (!session) return <SignIn />;
   // key: a different person signing in gets a completely fresh app.
   return <SignedIn key={session.user.id} session={session} />;
@@ -75,7 +90,7 @@ function SignedIn({ session }: { session: Session }) {
       </Centered>
     );
   }
-  if (!catalog || !profile) return <Centered><p className="text-muted" role="status">Loading courses…</p></Centered>;
+  if (!catalog || !profile) return <Loading text="Loading courses…" />;
   return <Shell catalog={catalog} session={session} profile={profile} />;
 }
 
@@ -101,6 +116,14 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
   const [term, setTerm] = useState<GridTerm>("first_term");
   const [page, setPage] = useState<Page>(pageFromHash);
   const [hash, setHash] = useState(window.location.hash);
+  useEffect(() => {
+    const titles: Record<Page, string> = {
+      builder: "Builder", compare: "Compare weeks", find: "Find courses", events: "Club events",
+      reviews: "Course reviews", course: decodeURIComponent(hash.slice("#course/".length)) || "Course",
+      clubs: "Clubs", admin: "Admin",
+    };
+    document.title = `${titles[page]} · Slotted`;
+  }, [page, hash]);
   useEffect(() => {
     if (page === "builder") allProfessorRatings().then(setProfRatings).catch(() => undefined);
   }, [page]);
@@ -131,70 +154,81 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
     window.setTimeout(() => schedule.applyChange(option.fix, option.name), 350);
   }
 
-  const tab = (target: Page, label: string) => (
-    <a
-      href={`#${target}`}
-      aria-current={page === target || (target === "reviews" && page === "course") ? "page" : undefined}
-      className={`rounded-lg px-3 py-1.5 text-sm whitespace-nowrap ${
-        page === target || (target === "reviews" && page === "course") ? "bg-brand-100 font-semibold text-brand-700" : "text-muted hover:text-ink"
-      }`}
-    >
-      {label}
-    </a>
-  );
+  const tab = (target: Page, label: string) => {
+    const active = page === target || (target === "reviews" && page === "course");
+    return (
+      <a
+        href={`#${target}`}
+        aria-current={active ? "page" : undefined}
+        className={`border-b-2 px-3 pb-2.5 pt-1 text-sm whitespace-nowrap transition-colors ${
+          active ? "border-brand-700 font-semibold text-brand-700" : "border-transparent text-muted hover:text-ink"
+        }`}
+      >
+        {label}
+      </a>
+    );
+  };
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <div className="flex items-center gap-2.5">
+      <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 pt-3">
+          <a href="#builder" className="flex items-center gap-2.5" aria-label="Slotted home">
             <span className="grid size-9 place-items-center rounded-lg bg-brand-700 text-white"><CalendarIcon /></span>
             <span className="font-display text-xl font-bold">Slotted</span>
-            <span className="hidden rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700 sm:inline">
-              Smart Resolve
-            </span>
-          </div>
-          <nav aria-label="Main" className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto">
-            {tab("builder", "Builder")}
-            {tab("compare", "Compare weeks")}
-            {tab("find", "Find courses")}
-            {tab("events", "Events")}
-            {tab("reviews", "Reviews")}
-            {tab("clubs", "Clubs")}
-            {profile.is_admin && tab("admin", "Admin")}
+          </a>
+          <div className="ml-auto flex items-center gap-2">
+            <label className="flex items-center gap-2 text-sm text-muted">
+              <span className="hidden sm:inline">Term</span>
+              <select
+                value={term}
+                onChange={(e) => setTerm(e.target.value as GridTerm)}
+                aria-label="Term"
+                className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-ink"
+              >
+                <option value="first_term">{TERM_LABELS.first_term}</option>
+                <option value="second_term">{TERM_LABELS.second_term}</option>
+              </select>
+            </label>
             <button
               type="button"
               onClick={() => setPrioritiesOpen(true)}
               aria-haspopup="dialog"
-              className={`rounded-lg px-3 py-1.5 text-sm whitespace-nowrap ${
-                prioritiesOpen ? "bg-brand-100 font-semibold text-brand-700" : "text-muted hover:text-ink"
-              }`}
+              className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-brand-200 hover:text-brand-700"
             >
               Priorities
             </button>
-          </nav>
-          <label className="ml-auto flex items-center gap-2 text-sm text-muted">
-            Term
-            <select
-              value={term}
-              onChange={(e) => setTerm(e.target.value as GridTerm)}
-              className="rounded-lg border border-line bg-white px-3 py-1.5 text-ink"
-            >
-              <option value="first_term">{TERM_LABELS.first_term}</option>
-              <option value="second_term">{TERM_LABELS.second_term}</option>
-            </select>
-          </label>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="hidden max-w-[14rem] truncate text-muted md:inline" title={session.user.email}>{session.user.email}</span>
-            <button
-              type="button"
-              onClick={() => void supabase?.auth.signOut()}
-              className="rounded-lg border border-line px-3 py-1.5 font-semibold hover:border-brand-200"
-            >
-              Sign out
-            </button>
+            <details className="relative">
+              <summary
+                aria-label={`Account: ${session.user.email}`}
+                className="grid size-9 cursor-pointer list-none place-items-center rounded-full bg-brand-100 text-sm font-bold text-brand-700 uppercase [&::-webkit-details-marker]:hidden"
+              >
+                {(session.user.email ?? "?").slice(0, 1)}
+              </summary>
+              <div className="absolute right-0 z-40 mt-2 w-64 rounded-xl border border-line bg-white p-3 text-sm shadow-lg">
+                <p className="text-xs text-muted">Signed in as</p>
+                <p className="truncate font-semibold" title={session.user.email}>{session.user.email}</p>
+                {profile.is_admin && <p className="mt-1 text-xs font-semibold text-brand-700">Admin</p>}
+                <button
+                  type="button"
+                  onClick={() => void supabase?.auth.signOut()}
+                  className="mt-3 w-full rounded-lg border border-line px-3 py-1.5 font-semibold hover:border-conflict-200 hover:text-conflict-700"
+                >
+                  Sign out
+                </button>
+              </div>
+            </details>
           </div>
         </div>
+        <nav aria-label="Main" className="mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-4 pt-2 [scrollbar-width:none]">
+          {tab("builder", "Builder")}
+          {tab("compare", "Compare")}
+          {tab("find", "Find courses")}
+          {tab("events", "Events")}
+          {tab("reviews", "Reviews")}
+          {tab("clubs", "Clubs")}
+          {profile.is_admin && tab("admin", "Admin")}
+        </nav>
       </header>
       <PlanBar schedule={schedule} userId={session.user.id} />
 

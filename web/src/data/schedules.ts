@@ -2,7 +2,7 @@
 // Row-level security in the database makes sure each student only ever sees
 // and changes their own rows; the website doesn't have to filter by user.
 
-import type { ScheduleState } from "../state/useSchedule";
+import { keepUnset, type ScheduleState } from "../state/useSchedule";
 import { requireSupabase } from "./supabase";
 
 export interface SavedPlanSummary {
@@ -41,7 +41,8 @@ export async function savePlan(
   state: ScheduleState,
 ): Promise<{ id: string; name: string }> {
   const db = requireSupabase();
-  const body = { name: plan.name.trim(), choices: state.choices, locked: state.locked, prefs: state.prefs };
+  // keepUnset: "no preference" choices are saved as null so they survive the round trip.
+  const body = { name: plan.name.trim(), choices: state.choices, locked: state.locked, prefs: JSON.parse(JSON.stringify(state.prefs, keepUnset)) };
   const query = plan.id
     ? db.from("saved_schedules").update(body).eq("id", plan.id).select("id,name").single()
     : db.from("saved_schedules").insert(body).select("id,name").single();

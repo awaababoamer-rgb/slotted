@@ -37,6 +37,12 @@ export interface ScheduleState {
   prefs: Preferences;
 }
 
+/**
+ * JSON drops `undefined`, so "no preference" (e.g. no light day) would come back
+ * as the default after a reload. Save it as null instead; null means "none".
+ */
+export const keepUnset = (_key: string, value: unknown) => (value === undefined ? null : value);
+
 /** The working copy is kept per signed-in user, so people sharing a computer don't see each other's. */
 export function storageKeyFor(userId: string) {
   return `slotted:schedule:v1:${userId}`;
@@ -65,7 +71,7 @@ export function useSchedule(catalog: Course[], storageKey: string) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify(state));
+      localStorage.setItem(storageKey, JSON.stringify(state, keepUnset));
     } catch {
       // Ignore: saving is a convenience only.
     }

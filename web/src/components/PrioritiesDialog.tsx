@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { Day, Preferences } from "@slotted/engine";
+import { LIGHT_DAY_MAX_HOURS, type Day, type Preferences } from "@slotted/engine";
+import { DAY_LONG, formatTime } from "../lib/format";
 
 /** The lunch window from the design: at least one free hour between 11:30 AM and 1:30 PM. */
 export const LUNCH_WINDOW = { start: "11:30", end: "13:30", minutes: 60 };
@@ -39,6 +40,42 @@ function Segmented<T extends string>({
         ))}
       </div>
     </fieldset>
+  );
+}
+
+// Slider steps: 8:30 (any time) up to 12:30, every 30 minutes.
+const SLIDER_TIMES = ["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30"];
+
+function EarliestSlider({ value, onChange }: { value: string | undefined; onChange: (v: string | undefined) => void }) {
+  const id = useId();
+  const index = Math.max(0, SLIDER_TIMES.indexOf(value ?? "08:30"));
+  const text = index === 0 ? "Any time" : `No classes before ${formatTime(SLIDER_TIMES[index])}`;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <label htmlFor={id} className="text-sm font-semibold">Earliest class I'll take</label>
+        <span className="text-sm font-semibold text-brand-700" aria-hidden>{text}</span>
+      </div>
+      <input
+        id={id}
+        type="range"
+        min={0}
+        max={SLIDER_TIMES.length - 1}
+        step={1}
+        value={index}
+        aria-valuetext={text}
+        onChange={(e) => {
+          const i = Number(e.target.value);
+          onChange(i === 0 ? undefined : SLIDER_TIMES[i]);
+        }}
+        className="mt-3 w-full accent-brand-700"
+      />
+      <div className="mt-1 flex justify-between text-[11px] text-muted" aria-hidden>
+        <span>Any time</span>
+        <span>10:30 AM</span>
+        <span>12:30 PM</span>
+      </div>
+    </div>
   );
 }
 
@@ -139,26 +176,25 @@ export function PrioritiesDialog({ open, prefs, onSave, onClose }: Props) {
         </div>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-          <Segmented
-            label="Earliest class I'll take"
-            value={draft.earliestStart ?? "08:30"}
-            onChange={(v) => set({ earliestStart: v })}
-            options={[
-              { value: "08:30", label: "8:30 AM" },
-              { value: "09:30", label: "9:30 AM" },
-              { value: "10:30", label: "10:30 AM" },
-            ]}
-          />
+          <EarliestSlider value={draft.earliestStart} onChange={(v) => set({ earliestStart: v })} />
           <Segmented
             label="Keep one day light"
             value={lightDay}
             onChange={(v) => set({ lightDay: v === "none" ? undefined : v })}
             options={[
-              { value: "none", label: "No preference" },
-              { value: "Mon", label: "Monday" },
-              { value: "Fri", label: "Friday" },
+              { value: "none", label: "None" },
+              { value: "Mon", label: "Mon" },
+              { value: "Tue", label: "Tue" },
+              { value: "Wed", label: "Wed" },
+              { value: "Thu", label: "Thu" },
+              { value: "Fri", label: "Fri" },
             ]}
           />
+          {draft.lightDay && (
+            <p className="-mt-3 text-xs text-muted">
+              Fixes and weeks with at most {LIGHT_DAY_MAX_HOURS} hours of class on {DAY_LONG[draft.lightDay]} rank higher.
+            </p>
+          )}
 
           <fieldset>
             <legend className="text-sm font-semibold">Ranking rules</legend>

@@ -10,6 +10,7 @@ import { MyCourses } from "../components/MyCourses";
 import { FitsPanel } from "../components/FitsPanel";
 import { SmartResolve } from "../components/SmartResolve";
 import { WeekGrid } from "../components/WeekGrid";
+import { WelcomeGuide } from "../components/WelcomeGuide";
 import { DAY_LONG, formatTime, sectionLabel, TERM_LABELS } from "../lib/format";
 import type { MyEventsApi } from "../data/myEvents";
 import type { Ratings } from "../data/reviews";
@@ -164,9 +165,10 @@ export function Builder({ courses, schedule, term, onEditPriorities, myEvents, p
 
       {/* Middle: banner + week */}
       <div className="min-w-0 space-y-4">
+        {state.choices.length === 0 && <WelcomeGuide />}
         <ConflictBanner conflicts={shownConflicts} courseCount={state.choices.length} mode={bannerMode} />
 
-        <section id="week-view" className="scroll-mt-4 rounded-2xl border border-line bg-white shadow-sm">
+        <section id="week-view" className="scroll-mt-32 rounded-2xl border border-line bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
             <h2 className="font-display text-lg font-semibold">
               Week view <span className="text-sm font-normal text-muted">· {TERM_LABELS[term]}</span>

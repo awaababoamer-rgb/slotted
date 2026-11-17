@@ -118,7 +118,7 @@ export function SmartResolve(props: Props) {
   const conflictCount = result.fixes.length > 0 || !result.alreadyConflictFree;
 
   return (
-    <section id="smart-resolve" className="scroll-mt-4 rounded-2xl border border-line bg-white p-4 shadow-sm">
+    <section id="smart-resolve" className="scroll-mt-32 rounded-2xl border border-line bg-white p-4 shadow-sm">
       <div className="flex items-center gap-2">
         <span className="grid size-8 place-items-center rounded-lg bg-brand-50 text-brand-700"><ShuffleIcon /></span>
         <h2 className="font-display text-lg font-semibold">Smart Resolve</h2>
