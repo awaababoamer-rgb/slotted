@@ -251,9 +251,13 @@ create trigger reviews_guard before insert or update on public.reviews
 
 alter table public.reviews enable row level security;
 revoke all on table public.reviews from anon, authenticated;
--- The website only ever reads reviews through the anonymous view below, so the
--- base table gets NO select grant: user_id can never be fetched by a student.
+-- Students may read every column EXCEPT user_id (column-level grant), so the
+-- author can never be fetched. Editing/deleting your own review needs to read
+-- the id column, which is why this isn't "no select at all".
 grant insert, update, delete on table public.reviews to authenticated;
+grant select (id, course_code, professor, term_taken, overall, difficulty, workload,
+              would_take_again, comment, created_at, updated_at)
+  on table public.reviews to authenticated;
 
 drop policy if exists "Students post reviews" on public.reviews;
 create policy "Students post reviews" on public.reviews

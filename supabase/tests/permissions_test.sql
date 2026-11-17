@@ -42,7 +42,8 @@ end $$;
 create or replace function pg_temp.check_rows(name text, expected_rows int, sql text) returns void language plpgsql as $$
 declare n int;
 begin
-  execute 'select count(*) from (' || sql || ') q' into n;
+  -- "with" works for both plain selects and update/delete ... returning.
+  execute 'with q as (' || sql || ') select count(*) from q' into n;
   insert into results (test, outcome)
   values (name, case when n = expected_rows then 'PASS' else 'FAIL (got ' || n || ' rows, expected ' || expected_rows || ')' end);
 end $$;
