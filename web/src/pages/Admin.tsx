@@ -3,6 +3,7 @@ import { loadAdminCounts, type AdminCounts } from "../data/admin";
 import { CATEGORY_LABELS, deleteClub, listAllClubs, reviewClub, type ClubRequest } from "../data/clubs";
 import type { Profile } from "../data/profile";
 import { keepReview, listReportedReviews, removeReview, type ReportedReview } from "../data/reviews";
+import { TeamAdmins } from "../components/TeamAdmins";
 import { courseHref } from "./Reviews";
 import { formatDate } from "../lib/format";
 
@@ -206,6 +207,8 @@ export function Admin({ profile }: { profile: Profile }) {
           </ul>
         )}
       </section>
+
+      <TeamAdmins myUserId={profile.user_id} />
     </div>
   );
 }

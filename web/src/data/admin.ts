@@ -24,3 +24,26 @@ export async function loadAdminCounts(): Promise<AdminCounts> {
   ]);
   return { pendingClubs, approvedClubs, openReports };
 }
+
+// ---- Team admins ----
+
+export interface AdminUser {
+  user_id: string;
+  email: string;
+}
+
+export async function listAdmins(): Promise<AdminUser[]> {
+  const { data, error } = await requireSupabase()
+    .from("profiles")
+    .select("user_id,email")
+    .eq("is_admin", true)
+    .order("email");
+  if (error) throw new Error(`Couldn't load admins: ${error.message}`);
+  return data ?? [];
+}
+
+/** Calls the database function that checks you're an admin before changing anything. */
+export async function setAdmin(email: string, makeAdmin: boolean): Promise<void> {
+  const { error } = await requireSupabase().rpc("set_admin", { target_email: email.trim(), make_admin: makeAdmin });
+  if (error) throw new Error(error.message);
+}

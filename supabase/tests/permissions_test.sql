@@ -142,6 +142,25 @@ select pg_temp.check('Bob cannot make himself admin', false,
 select pg_temp.check_rows('Bob cannot see other profiles', 1,
   $q$ select 1 from public.profiles $q$);
 
+-- ---------- Managing admins ----------
+select pg_temp.become('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check('Bob (not admin) cannot make himself admin via set_admin', false,
+  $q$ select public.set_admin('bob-test@uwo.ca', true) $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check('Admin can make Bob an admin', true,
+  $q$ select public.set_admin('bob-test@uwo.ca', true) $q$);
+select pg_temp.check_rows('Bob is now an admin', 1,
+  $q$ select 1 from public.profiles where email = 'bob-test@uwo.ca' and is_admin $q$);
+select pg_temp.check('Admin cannot remove their own admin access', false,
+  $q$ select public.set_admin('admin-test@uwo.ca', false) $q$);
+select pg_temp.check('Unknown email is rejected', false,
+  $q$ select public.set_admin('nobody-here@uwo.ca', true) $q$);
+select pg_temp.check('Admin can remove Bob''s admin access', true,
+  $q$ select public.set_admin('bob-test@uwo.ca', false) $q$);
+select pg_temp.check_rows('Bob is no longer an admin', 1,
+  $q$ select 1 from public.profiles where email = 'bob-test@uwo.ca' and not is_admin $q$);
+
 -- ---------- Results ----------
 reset role;
 -- The editor shows the LAST result: one line per test, failures first.
