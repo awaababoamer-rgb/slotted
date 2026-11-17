@@ -12,6 +12,7 @@ import { SmartResolve } from "../components/SmartResolve";
 import { WeekGrid } from "../components/WeekGrid";
 import { DAY_LONG, formatTime, sectionLabel, TERM_LABELS } from "../lib/format";
 import type { MyEventsApi } from "../data/myEvents";
+import type { Ratings } from "../data/reviews";
 import { eventsForGrid, fixEventWarnings } from "../lib/eventGrid";
 import { blocksOfPick } from "../lib/grid";
 import type { ScheduleApi } from "../state/useSchedule";
@@ -24,6 +25,7 @@ interface Props {
   term: GridTerm;
   onEditPriorities: () => void;
   myEvents: MyEventsApi;
+  profRatings: Map<string, Ratings>;
 }
 
 function hoursText(hours: number) {
@@ -59,7 +61,7 @@ function PrioritiesCard({ prefs, onEdit, className }: { prefs: Preferences; onEd
   );
 }
 
-export function Builder({ courses, schedule, term, onEditPriorities, myEvents }: Props) {
+export function Builder({ courses, schedule, term, onEditPriorities, myEvents, profRatings }: Props) {
   const { picks, conflictReport, state } = schedule;
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -156,7 +158,7 @@ export function Builder({ courses, schedule, term, onEditPriorities, myEvents }:
           addedCodes={new Set(state.choices.map((c) => c.code))}
           onAdd={schedule.addCourse}
         />
-        <MyCourses schedule={schedule} previewSections={previewMoves} moved={moved} />
+        <MyCourses schedule={schedule} previewSections={previewMoves} moved={moved} profRatings={profRatings} />
         <PrioritiesCard prefs={state.prefs} onEdit={onEditPriorities} className="hidden lg:block" />
       </div>
 

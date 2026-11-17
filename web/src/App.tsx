@@ -7,6 +7,7 @@ import { PlanBar } from "./components/PlanBar";
 import { loadCatalog, type Catalog } from "./data/catalog";
 import { useMyEvents } from "./data/myEvents";
 import { loadProfile, type Profile } from "./data/profile";
+import { allProfessorRatings, type Ratings } from "./data/reviews";
 import { supabase, supabaseConfigured } from "./data/supabase";
 import { formatDate, TERM_LABELS } from "./lib/format";
 import type { Preferences } from "@slotted/engine";
@@ -15,7 +16,9 @@ import type { WeekOption } from "./lib/weekOptions";
 import { Builder } from "./pages/Builder";
 import { Admin } from "./pages/Admin";
 import { Clubs } from "./pages/Clubs";
+import { CoursePage } from "./pages/CoursePage";
 import { Events } from "./pages/Events";
+import { Reviews } from "./pages/Reviews";
 import { Compare } from "./pages/Compare";
 import { storageKeyFor, useSchedule } from "./state/useSchedule";
 
@@ -75,13 +78,15 @@ function SignedIn({ session }: { session: Session }) {
   return <Shell catalog={catalog} session={session} profile={profile} />;
 }
 
-type Page = "builder" | "compare" | "events" | "clubs" | "admin";
+type Page = "builder" | "compare" | "events" | "clubs" | "reviews" | "course" | "admin";
 
 function pageFromHash(): Page {
   const hash = window.location.hash;
   if (hash === "#compare") return "compare";
   if (hash === "#events") return "events";
   if (hash === "#clubs") return "clubs";
+  if (hash === "#reviews") return "reviews";
+  if (hash.startsWith("#course/")) return "course";
   if (hash === "#admin") return "admin";
   return "builder";
 }
@@ -89,8 +94,14 @@ function pageFromHash(): Page {
 function Shell({ catalog, session, profile }: { catalog: Catalog; session: Session; profile: Profile }) {
   const schedule = useSchedule(catalog.courses, storageKeyFor(session.user.id));
   const myEvents = useMyEvents();
+  // Professor averages for the Builder. Refreshed whenever you come back to the Builder.
+  const [profRatings, setProfRatings] = useState<Map<string, Ratings>>(new Map());
   const [term, setTerm] = useState<GridTerm>("first_term");
   const [page, setPage] = useState<Page>(pageFromHash);
+  const [hash, setHash] = useState(window.location.hash);
+  useEffect(() => {
+    if (page === "builder") allProfessorRatings().then(setProfRatings).catch(() => undefined);
+  }, [page]);
   const [prioritiesOpen, setPrioritiesOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -105,6 +116,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
   useEffect(() => {
     const onHash = () => {
       setPage(pageFromHash());
+      setHash(window.location.hash);
       if (window.location.hash !== "#smart-resolve") window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", onHash);
@@ -120,9 +132,9 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
   const tab = (target: Page, label: string) => (
     <a
       href={`#${target}`}
-      aria-current={page === target ? "page" : undefined}
+      aria-current={page === target || (target === "reviews" && page === "course") ? "page" : undefined}
       className={`rounded-lg px-3 py-1.5 text-sm whitespace-nowrap ${
-        page === target ? "bg-brand-100 font-semibold text-brand-700" : "text-muted hover:text-ink"
+        page === target || (target === "reviews" && page === "course") ? "bg-brand-100 font-semibold text-brand-700" : "text-muted hover:text-ink"
       }`}
     >
       {label}
@@ -144,6 +156,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
             {tab("builder", "Builder")}
             {tab("compare", "Compare weeks")}
             {tab("events", "Events")}
+            {tab("reviews", "Reviews")}
             {tab("clubs", "Clubs")}
             {profile.is_admin && tab("admin", "Admin")}
             <button
@@ -187,6 +200,13 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
           <Admin profile={profile} />
         ) : page === "events" ? (
           <Events userId={session.user.id} picks={schedule.picks} myEvents={myEvents} />
+        ) : page === "reviews" ? (
+          <Reviews courses={catalog.courses} myCodes={schedule.state.choices.map((c) => c.code)} />
+        ) : page === "course" ? (
+          <CoursePage
+            key={hash}
+            course={catalog.courses.find((c) => c.code === decodeURIComponent(hash.slice("#course/".length)))}
+          />
         ) : page === "clubs" ? (
           <Clubs userId={session.user.id} />
         ) : page === "compare" ? (
@@ -204,6 +224,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
             term={term}
             onEditPriorities={() => setPrioritiesOpen(true)}
             myEvents={myEvents}
+            profRatings={profRatings}
           />
         )}
       </main>

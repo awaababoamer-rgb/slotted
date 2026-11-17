@@ -1,5 +1,7 @@
 import { hasKnownTimes, type Course, type Section } from "@slotted/engine";
+import type { Ratings } from "../data/reviews";
 import { colorFor } from "../lib/colors";
+import { courseHref } from "../pages/Reviews";
 import { formatMeetings, formatRooms, plural, sectionLabel, termTag } from "../lib/format";
 import type { ScheduleApi } from "../state/useSchedule";
 import { CloseIcon, LockIcon } from "./icons";
@@ -29,15 +31,15 @@ function Tag({ tone, children }: { tone: "conflict" | "full" | "info"; children:
 }
 
 function SectionRow({
-  course, component, section, schedule, isMoved, previewing,
+  course, component, section, schedule, isMoved, previewing, profRatings,
 }: {
   course: Course; component: string; section: Section; schedule: ScheduleApi;
-  isMoved: boolean; previewing: boolean;
+  isMoved: boolean; previewing: boolean; profRatings: Map<string, Ratings>;
 }) {
   const locked = schedule.state.locked.includes(section.class_number);
   const conflict = !previewing && schedule.conflictedClassNumbers.has(section.class_number);
   const others = course.sections.filter((s) => s.component === component && hasKnownTimes(s));
-  const instructors = (section.instructors ?? []).join(", ");
+  const instructorList = (section.instructors as string[] | undefined) ?? [];
   const waitlist = typeof section.waitlist === "number" ? section.waitlist : null;
   const selectId = `sec-${section.class_number}`;
 
@@ -54,7 +56,25 @@ function SectionRow({
         </div>
         <div className="text-xs text-muted">{sectionSummary(section)}</div>
         <div className="text-xs text-muted">
-          {[formatRooms(section.meetings), instructors].filter(Boolean).join(" · ") || null}
+          {formatRooms(section.meetings)}
+          {instructorList.map((name, i) => {
+            const r = profRatings.get(`${course.code}|${name}`);
+            return (
+              <span key={name}>
+                {formatRooms(section.meetings) || i > 0 ? (i > 0 ? ", " : " · ") : ""}
+                {name}
+                {r && (
+                  <a
+                    href={courseHref(course.code)}
+                    title={`${name} in ${course.code}: ${r.overall.toFixed(1)}/5 from ${r.review_count} review${r.review_count === 1 ? "" : "s"}`}
+                    className="ml-1 font-semibold text-[#9a6b00] hover:underline"
+                  >
+                    ★ {r.overall.toFixed(1)} ({r.review_count})
+                  </a>
+                )}
+              </span>
+            );
+          })}
         </div>
         {others.length > 1 && (
           <>
@@ -97,9 +117,11 @@ interface Props {
   previewSections?: Map<string, Section>;
   /** Class numbers a fix moved (or would move). */
   moved?: Set<number>;
+  /** Professor averages, keyed "COURSE|Professor". */
+  profRatings?: Map<string, Ratings>;
 }
 
-export function MyCourses({ schedule, previewSections = new Map(), moved = new Set() }: Props) {
+export function MyCourses({ schedule, previewSections = new Map(), moved = new Set(), profRatings = new Map() }: Props) {
   const { choices } = schedule.state;
   const previewing = previewSections.size > 0;
 
@@ -135,7 +157,9 @@ export function MyCourses({ schedule, previewSections = new Map(), moved = new S
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
-                    <h3 className="text-sm font-bold">{course.code}</h3>
+                    <h3 className="text-sm font-bold">
+                      <a href={courseHref(course.code)} className="hover:text-brand-700 hover:underline" title="Reviews">{course.code}</a>
+                    </h3>
                     <span className="text-[11px] text-muted">{termTag(course.term)}</span>
                   </div>
                   <p className="truncate text-xs text-muted">{String(course.title ?? "")}</p>
@@ -175,6 +199,7 @@ export function MyCourses({ schedule, previewSections = new Map(), moved = new S
                       schedule={schedule}
                       isMoved={moved.has(section.class_number)}
                       previewing={previewing}
+                      profRatings={profRatings}
                     />
                   );
                 })}

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { loadAdminCounts, type AdminCounts } from "../data/admin";
 import { CATEGORY_LABELS, deleteClub, listAllClubs, reviewClub, type ClubRequest } from "../data/clubs";
 import type { Profile } from "../data/profile";
+import { keepReview, listReportedReviews, removeReview, type ReportedReview } from "../data/reviews";
+import { courseHref } from "./Reviews";
 import { formatDate } from "../lib/format";
 
 function RequestCard({ club, onDone }: { club: ClubRequest; onDone: () => Promise<void> }) {
@@ -65,13 +67,15 @@ function RequestCard({ club, onDone }: { club: ClubRequest; onDone: () => Promis
 export function Admin({ profile }: { profile: Profile }) {
   const [counts, setCounts] = useState<AdminCounts | null>(null);
   const [clubs, setClubs] = useState<ClubRequest[] | null>(null);
+  const [reported, setReported] = useState<ReportedReview[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
     try {
-      const [c, all] = await Promise.all([loadAdminCounts(), listAllClubs()]);
+      const [c, all, reports] = await Promise.all([loadAdminCounts(), listAllClubs(), listReportedReviews()]);
       setCounts(c);
       setClubs(all);
+      setReported(reports);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -101,6 +105,15 @@ export function Admin({ profile }: { profile: Profile }) {
     if (!window.confirm(`Revoke approval for "${c.name}"? Its execs lose posting access; existing events are kept but hidden.`)) return;
     try {
       await reviewClub(c.id, "rejected", c.review_note || "Approval revoked");
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function moderate(action: () => Promise<void>) {
+    try {
+      await action();
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -156,10 +169,42 @@ export function Admin({ profile }: { profile: Profile }) {
         </section>
       )}
 
-      <section className="mt-8 rounded-2xl border border-line bg-white p-5 shadow-sm">
-        <h2 className="font-display text-lg font-semibold">Reported reviews</h2>
-        <p className="mt-1 text-3xl font-bold">{counts ? counts.openReports : "–"}</p>
-        <p className="text-sm text-muted">open reports · moderation arrives with the reviews build step</p>
+      <section className="mt-8">
+        <h2 className="font-display text-lg font-semibold">
+          Reported reviews <span className="text-sm font-normal text-muted">· {counts?.openReports ?? "–"} open reports</span>
+        </h2>
+        {reported === null ? (
+          <p className="mt-2 text-sm text-muted" role="status">Loading…</p>
+        ) : reported.length === 0 ? (
+          <p className="mt-2 text-sm text-muted">Nothing reported.</p>
+        ) : (
+          <ul className="mt-3 space-y-3">
+            {reported.map(({ review: r, reasons, reportIds }) => (
+              <li key={r.id} className="rounded-xl border border-line bg-white p-4">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+                  <a href={courseHref(r.course_code)} className="font-semibold text-brand-700 hover:underline">{r.course_code}</a>
+                  <span>{r.professor}</span>
+                  <span className="text-muted">{r.term_taken} · overall {r.overall}/5</span>
+                </div>
+                {r.comment && <p className="mt-2 rounded-lg bg-page px-3 py-2 text-sm whitespace-pre-line">{r.comment}</p>}
+                <p className="mt-2 text-xs text-muted">
+                  Reported {reasons.length} {reasons.length === 1 ? "time" : "times"}: {reasons.join(" · ")}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button type="button" onClick={() => void moderate(() => keepReview(reportIds))}
+                    className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold">
+                    Keep
+                  </button>
+                  <button type="button"
+                    onClick={() => window.confirm("Remove this review for everyone? This can't be undone.") && void moderate(() => removeReview(r.id))}
+                    className="rounded-lg border border-conflict-200 px-3 py-1.5 text-sm font-semibold text-conflict-700">
+                    Remove review
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );
