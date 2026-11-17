@@ -161,6 +161,31 @@ select pg_temp.check('Admin can remove Bob''s admin access', true,
 select pg_temp.check_rows('Bob is no longer an admin', 1,
   $q$ select 1 from public.profiles where email = 'bob-test@uwo.ca' and not is_admin $q$);
 
+-- ---------- Allowed schools ----------
+select pg_temp.become('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check('Bob (not admin) cannot add a school', false,
+  $q$ insert into public.allowed_email_domains (domain, school_name) values ('example.com', 'Fake U') $q$);
+select pg_temp.check_rows('Signed-in users can read the school list', 1,
+  $q$ select 1 from public.allowed_email_domains where domain = 'uwaterloo.ca' $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check_rows('Admin cannot remove Western (0 rows deleted)', 0,
+  $q$ delete from public.allowed_email_domains where domain = 'uwo.ca' returning 1 $q$);
+
+reset role;
+select pg_temp.check('A Waterloo email can sign up', true,
+  $q$ insert into auth.users (id, instance_id, aud, role, email, encrypted_password, created_at, updated_at)
+      values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'w-test@uwaterloo.ca', '', now(), now()) $q$);
+select pg_temp.check('A U of T subdomain email can sign up', true,
+  $q$ insert into auth.users (id, instance_id, aud, role, email, encrypted_password, created_at, updated_at)
+      values ('00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 't-test@mail.utoronto.ca', '', now(), now()) $q$);
+select pg_temp.check('A Gmail address is still refused', false,
+  $q$ insert into auth.users (id, instance_id, aud, role, email, encrypted_password, created_at, updated_at)
+      values ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'someone@gmail.com', '', now(), now()) $q$);
+select pg_temp.check('A look-alike domain is refused (notuwaterloo.ca)', false,
+  $q$ insert into auth.users (id, instance_id, aud, role, email, encrypted_password, created_at, updated_at)
+      values ('00000000-0000-0000-0000-0000000000d4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'x@notuwaterloo.ca', '', now(), now()) $q$);
+
 -- ---------- Results ----------
 reset role;
 -- The editor shows the LAST result: one line per test, failures first.

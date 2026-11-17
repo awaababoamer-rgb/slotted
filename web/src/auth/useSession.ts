@@ -19,5 +19,3 @@ export function useSession(): { session: Session | null; loading: boolean } {
 
   return { session, loading };
 }
-
-export const UWO_EMAIL = /^[^@\s]+@uwo\.ca$/i;

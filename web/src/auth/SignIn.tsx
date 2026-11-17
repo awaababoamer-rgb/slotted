@@ -1,14 +1,14 @@
 import { useEffect, useId, useState } from "react";
 import { CalendarIcon } from "../components/icons";
 import { requireSupabase } from "../data/supabase";
-import { UWO_EMAIL } from "./useSession";
+import { emailAllowed, listSchools, type School } from "../data/schools";
 
 const RESEND_SECONDS = 60;
 
 /** Turn Supabase's error messages into plain language. */
 function explain(message: string): string {
-  if (/database error|only for @uwo\.ca|check_violation/i.test(message)) {
-    return "Slotted accounts are only for @uwo.ca email addresses.";
+  if (/database error|only for university email|check_violation/i.test(message)) {
+    return "Slotted accounts are only for university email addresses on our list.";
   }
   if (/rate limit|too many|security purposes/i.test(message)) {
     return "Too many codes requested. Wait a minute, then try again.";
@@ -18,7 +18,7 @@ function explain(message: string): string {
 }
 
 /**
- * Sign in with a one-time code emailed to an @uwo.ca address. No passwords.
+ * Sign in with a one-time code emailed to a university address (Western, Waterloo, ...). No passwords.
  * Slotted's own design: it does not look like Western's login page.
  */
 export function SignIn() {
@@ -28,6 +28,12 @@ export function SignIn() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
+  const [schools, setSchools] = useState<School[]>([]);
+
+  useEffect(() => {
+    // If this fails, the database still enforces the list; we just skip the early check.
+    listSchools().then(setSchools).catch(() => setSchools([]));
+  }, []);
   const emailId = useId();
   const codeId = useId();
 
@@ -39,8 +45,8 @@ export function SignIn() {
 
   async function sendCode() {
     const clean = email.trim().toLowerCase();
-    if (!UWO_EMAIL.test(clean)) {
-      setError("Use your @uwo.ca email address.");
+    if (schools.length > 0 && !emailAllowed(clean, schools)) {
+      setError("Use your university email address. Click \"Which schools?\" to see the list.");
       return;
     }
     setBusy(true);
@@ -86,16 +92,17 @@ export function SignIn() {
             <form onSubmit={(e) => { e.preventDefault(); void sendCode(); }} noValidate>
               <h1 className="font-display text-2xl font-bold">Plan your week, minus the clashes</h1>
               <p className="mt-2 text-sm text-muted">
-                Sign in with your <b className="text-ink">@uwo.ca</b> email. We'll send you a one-time code. No password needed.
+                Sign in with your <b className="text-ink">university email</b> (Western, Waterloo, Toronto and other Ontario
+                universities). We'll send you a one-time code. No password needed.
               </p>
-              <label htmlFor={emailId} className="mt-6 block text-sm font-semibold">Your @uwo.ca email</label>
+              <label htmlFor={emailId} className="mt-6 block text-sm font-semibold">Your university email</label>
               <input
                 id={emailId}
                 type="email"
                 inputMode="email"
                 autoComplete="email"
                 autoFocus
-                placeholder="you@uwo.ca"
+                placeholder="you@uwo.ca or you@uwaterloo.ca"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setError(null); }}
                 aria-invalid={!!error}
@@ -110,6 +117,21 @@ export function SignIn() {
               >
                 {busy ? "Sending…" : "Email me a code"}
               </button>
+              {schools.length > 0 && (
+                <details className="mt-4 text-sm">
+                  <summary className="cursor-pointer font-semibold text-brand-700">Which schools?</summary>
+                  <ul className="mt-2 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-muted sm:grid-cols-2">
+                    {[...new Map(schools.map((s) => [s.school_name, s])).values()].map((s) => (
+                      <li key={s.school_name}>
+                        {s.school_name}{" "}
+                        <span className="text-muted/80">
+                          ({schools.filter((x) => x.school_name === s.school_name).map((x) => `@${x.domain}`).join(", ")})
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </form>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); void verify(); }} noValidate>
