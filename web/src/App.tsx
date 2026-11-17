@@ -18,6 +18,7 @@ import { Admin } from "./pages/Admin";
 import { Clubs } from "./pages/Clubs";
 import { CoursePage } from "./pages/CoursePage";
 import { Events } from "./pages/Events";
+import { FindCourses } from "./pages/FindCourses";
 import { Reviews } from "./pages/Reviews";
 import { Compare } from "./pages/Compare";
 import { storageKeyFor, useSchedule } from "./state/useSchedule";
@@ -78,11 +79,12 @@ function SignedIn({ session }: { session: Session }) {
   return <Shell catalog={catalog} session={session} profile={profile} />;
 }
 
-type Page = "builder" | "compare" | "events" | "clubs" | "reviews" | "course" | "admin";
+type Page = "builder" | "compare" | "find" | "events" | "clubs" | "reviews" | "course" | "admin";
 
 function pageFromHash(): Page {
   const hash = window.location.hash;
   if (hash === "#compare") return "compare";
+  if (hash === "#find") return "find";
   if (hash === "#events") return "events";
   if (hash === "#clubs") return "clubs";
   if (hash === "#reviews") return "reviews";
@@ -155,6 +157,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
           <nav aria-label="Main" className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto">
             {tab("builder", "Builder")}
             {tab("compare", "Compare weeks")}
+            {tab("find", "Find courses")}
             {tab("events", "Events")}
             {tab("reviews", "Reviews")}
             {tab("clubs", "Clubs")}
@@ -198,6 +201,8 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
       <main className="flex-1">
         {page === "admin" ? (
           <Admin profile={profile} />
+        ) : page === "find" ? (
+          <FindCourses courses={catalog.courses} schedule={schedule} term={term} />
         ) : page === "events" ? (
           <Events userId={session.user.id} picks={schedule.picks} myEvents={myEvents} />
         ) : page === "reviews" ? (

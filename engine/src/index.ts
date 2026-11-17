@@ -6,4 +6,6 @@ export { scoreSchedule, LIGHT_DAY_MAX_HOURS } from "./score";
 export { hasKnownTimes, isAvoided, isRestricted, termsOverlap } from "./time";
 export { classifyEvent, termForDate, weekdayOf, MIN_MINUTES_LEFT } from "./events";
 export type { EventFit, EventTime } from "./events";
+export { adjustedRating, findFittingCourses, fitCourse, rankCourses, REVIEW_PRIOR } from "./recommend";
+export type { CourseFit, CourseRatingSummary, FitResult, RankOptions, Recommendation, RecommendFilters } from "./recommend";
 export type * from "./types";

@@ -166,3 +166,10 @@ export function recentTerms(count = 12): string[] {
 export function rateMyProfessorsUrl(professor: string): string {
   return `https://www.ratemyprofessors.com/search/professors?q=${encodeURIComponent(professor)}`;
 }
+
+/** Every course's averages, keyed by course code (for Find courses). */
+export async function allCourseRatings(): Promise<Map<string, Ratings>> {
+  const { data, error } = await requireSupabase().from("course_ratings").select("*");
+  if (error) throw new Error(`Couldn't load course ratings: ${error.message}`);
+  return new Map((data ?? []).map((row) => [row.course_code as string, toRatings(row)]));
+}

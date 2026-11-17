@@ -112,11 +112,18 @@ export function useSchedule(catalog: Course[], storageKey: string) {
    * If nothing fits, it still adds the course (with clashes) so Smart Resolve can help.
    */
   const addCourse = useCallback(
-    (code: string) => {
+    /** `chosen`: exact sections to use (component -> class number), e.g. from Find courses. */
+    (code: string, chosen?: Record<string, number>) => {
       setState((prev) => {
         if (prev.choices.some((c) => c.code === code)) return prev;
         const course = byCode.get(code);
         if (!course) return prev;
+        if (chosen) {
+          const usedColors = new Set(prev.choices.map((c) => c.colorIndex));
+          let colorIndex = 0;
+          while (usedColors.has(colorIndex)) colorIndex++;
+          return { ...prev, choices: [...prev.choices, { code, colorIndex, picks: { ...chosen } }] };
+        }
 
         const current = prev.choices.flatMap((c) => Object.values(c.picks));
         const codes = [...prev.choices.map((c) => c.code), code];
