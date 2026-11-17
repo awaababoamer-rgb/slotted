@@ -113,6 +113,9 @@ begin
       insert into public.club_execs (club_id, user_id, role)
       values (new.id, new.requested_by, new.requester_role)
       on conflict do nothing;
+    elsif old.status = 'approved' then
+      -- Approval revoked: nobody runs this club any more.
+      delete from public.club_execs where club_id = new.id;
     end if;
   end if;
   return new;
@@ -125,7 +128,7 @@ create trigger clubs_guard before insert or update on public.clubs
 alter table public.clubs enable row level security;
 alter table public.club_execs enable row level security;
 revoke all on table public.clubs, public.club_execs from anon, authenticated;
-grant select, insert, update on table public.clubs to authenticated;
+grant select, insert, update, delete on table public.clubs to authenticated;
 grant select, insert, delete on table public.club_execs to authenticated;
 
 drop policy if exists "Read approved clubs, own requests, or all as admin" on public.clubs;
@@ -142,6 +145,10 @@ create policy "Admins or the requester (while pending) can update" on public.clu
   for update to authenticated
   using (public.is_admin() or (requested_by = (select auth.uid()) and status = 'pending'))
   with check (public.is_admin() or requested_by = (select auth.uid()));
+
+drop policy if exists "Admins delete clubs" on public.clubs;
+create policy "Admins delete clubs" on public.clubs
+  for delete to authenticated using (public.is_admin());
 
 drop policy if exists "Everyone signed in can see club execs" on public.club_execs;
 create policy "Everyone signed in can see club execs" on public.club_execs

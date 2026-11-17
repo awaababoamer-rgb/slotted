@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadAdminCounts, type AdminCounts } from "../data/admin";
-import { CATEGORY_LABELS, listAllClubs, reviewClub, type ClubRequest } from "../data/clubs";
+import { CATEGORY_LABELS, deleteClub, listAllClubs, reviewClub, type ClubRequest } from "../data/clubs";
 import type { Profile } from "../data/profile";
 import { formatDate } from "../lib/format";
 
@@ -87,6 +87,26 @@ export function Admin({ profile }: { profile: Profile }) {
     );
   }
 
+  async function remove(c: ClubRequest) {
+    if (!window.confirm(`Remove "${c.name}"? Its events and exec access are deleted too. This can't be undone.`)) return;
+    try {
+      await deleteClub(c.id);
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function revoke(c: ClubRequest) {
+    if (!window.confirm(`Revoke approval for "${c.name}"? Its execs lose posting access; existing events are kept but hidden.`)) return;
+    try {
+      await reviewClub(c.id, "rejected", c.review_note || "Approval revoked");
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   const pending = (clubs ?? []).filter((c) => c.status === "pending");
   const decided = (clubs ?? []).filter((c) => c.status !== "pending");
 
@@ -122,6 +142,14 @@ export function Admin({ profile }: { profile: Profile }) {
                 <span className="text-muted">{c.requester_email}</span>
                 {c.review_note && <span className="text-muted">· {c.review_note}</span>}
                 <span className="ml-auto text-xs text-muted">{formatDate(c.reviewed_at)}</span>
+                {c.status === "approved" && (
+                  <button type="button" onClick={() => void revoke(c)} className="text-xs font-semibold text-muted hover:text-conflict-700">
+                    Revoke approval
+                  </button>
+                )}
+                <button type="button" onClick={() => void remove(c)} className="text-xs font-semibold text-conflict-700 hover:underline">
+                  Remove club
+                </button>
               </li>
             ))}
           </ul>

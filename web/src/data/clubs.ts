@@ -82,3 +82,9 @@ export async function reviewClub(id: string, status: "approved" | "rejected", no
     .eq("id", id);
   if (error) throw new Error(`Couldn't update the club: ${error.message}`);
 }
+
+/** Admins only: delete a club and everything attached to it (events, execs, added events). */
+export async function deleteClub(id: string): Promise<void> {
+  const { error } = await requireSupabase().from("clubs").delete().eq("id", id);
+  if (error) throw new Error(`Couldn't remove the club: ${error.message}`);
+}
