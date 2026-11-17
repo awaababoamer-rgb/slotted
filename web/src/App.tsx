@@ -51,7 +51,7 @@ function SignedIn({ session }: { session: Session }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([loadCatalog(), loadProfile()])
+    Promise.all([loadCatalog(), loadProfile(session.user.id)])
       .then(([c, p]) => { setCatalog(c); setProfile(p); })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);

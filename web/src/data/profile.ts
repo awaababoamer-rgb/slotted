@@ -9,10 +9,12 @@ export interface Profile {
   is_admin: boolean;
 }
 
-export async function loadProfile(): Promise<Profile> {
+export async function loadProfile(userId: string): Promise<Profile> {
+  // Admins can see every profile, so ask for this account's row only.
   const { data, error } = await requireSupabase()
     .from("profiles")
     .select("user_id,email,is_admin")
+    .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(`Couldn't load your profile: ${error.message}`);
   if (!data) throw new Error("Your profile is missing. Run the latest SQL migration in Supabase.");

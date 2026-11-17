@@ -14,6 +14,9 @@ values
 update public.profiles set is_admin = true where user_id = '00000000-0000-0000-0000-00000000000c';
 
 create temp table results (n serial, test text, outcome text);
+-- The pretend students must be allowed to write to the scoreboard.
+grant insert, select on results to authenticated;
+grant usage on sequence results_n_seq to authenticated;
 
 -- Helper: become a user (the way Supabase's API does it).
 create or replace function pg_temp.become(uid text) returns void language plpgsql as $$
