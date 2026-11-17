@@ -13,10 +13,10 @@ values
   ('00000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin-test@uwo.ca', '', now(), now(), now());
 update public.profiles set is_admin = true where user_id = '00000000-0000-0000-0000-00000000000c';
 
-create temp table results (n serial, test text, outcome text);
+create temp table pg_temp.results (n serial, test text, outcome text);
 -- The pretend students must be allowed to write to the scoreboard.
-grant insert, select on results to authenticated;
-grant usage on sequence results_n_seq to authenticated;
+grant insert, select on pg_temp.results to authenticated;
+grant usage on sequence pg_temp.results_n_seq to authenticated;
 
 -- Helper: become a user (the way Supabase's API does it).
 create or replace function pg_temp.become(uid text) returns void language plpgsql as $$
@@ -34,7 +34,7 @@ begin
   exception when others then
     ok := false;
   end;
-  insert into results (test, outcome)
+  insert into pg_temp.results (test, outcome)
   values (name, case when ok = expected_ok then 'PASS' else 'FAIL (' || case when ok then 'was allowed' else 'was blocked' end || ')' end);
 end $$;
 
@@ -44,7 +44,7 @@ declare n int;
 begin
   -- "with" works for both plain selects and update/delete ... returning.
   execute 'with q as (' || sql || ') select count(*) from q' into n;
-  insert into results (test, outcome)
+  insert into pg_temp.results (test, outcome)
   values (name, case when n = expected_rows then 'PASS' else 'FAIL (got ' || n || ' rows, expected ' || expected_rows || ')' end);
 end $$;
 
@@ -142,8 +142,8 @@ select pg_temp.check_rows('Bob cannot see other profiles', 1,
 
 -- ---------- Results ----------
 reset role;
-select test, outcome from results order by n;
+select test, outcome from pg_temp.results order by n;
 select count(*) filter (where outcome = 'PASS') as passed,
-       count(*) filter (where outcome <> 'PASS') as failed from results;
+       count(*) filter (where outcome <> 'PASS') as failed from pg_temp.results;
 
 rollback;  -- throw away every test row
