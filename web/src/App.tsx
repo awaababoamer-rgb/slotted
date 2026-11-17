@@ -5,12 +5,14 @@ import { useSession } from "./auth/useSession";
 import { CalendarIcon } from "./components/icons";
 import { PlanBar } from "./components/PlanBar";
 import { loadCatalog, type Catalog } from "./data/catalog";
+import { loadProfile, type Profile } from "./data/profile";
 import { supabase, supabaseConfigured } from "./data/supabase";
 import { formatDate, TERM_LABELS } from "./lib/format";
 import type { Preferences } from "@slotted/engine";
 import { PrioritiesDialog } from "./components/PrioritiesDialog";
 import type { WeekOption } from "./lib/weekOptions";
 import { Builder } from "./pages/Builder";
+import { Admin } from "./pages/Admin";
 import { Compare } from "./pages/Compare";
 import { storageKeyFor, useSchedule } from "./state/useSchedule";
 
@@ -45,10 +47,13 @@ export function App() {
 /** Course data is only fetched after sign-in; the database refuses it otherwise. */
 function SignedIn({ session }: { session: Session }) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadCatalog().then(setCatalog).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+    Promise.all([loadCatalog(), loadProfile()])
+      .then(([c, p]) => { setCatalog(c); setProfile(p); })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   if (error) {
@@ -63,17 +68,20 @@ function SignedIn({ session }: { session: Session }) {
       </Centered>
     );
   }
-  if (!catalog) return <Centered><p className="text-muted" role="status">Loading courses…</p></Centered>;
-  return <Shell catalog={catalog} session={session} />;
+  if (!catalog || !profile) return <Centered><p className="text-muted" role="status">Loading courses…</p></Centered>;
+  return <Shell catalog={catalog} session={session} profile={profile} />;
 }
 
-type Page = "builder" | "compare";
+type Page = "builder" | "compare" | "admin";
 
 function pageFromHash(): Page {
-  return window.location.hash === "#compare" ? "compare" : "builder";
+  const hash = window.location.hash;
+  if (hash === "#compare") return "compare";
+  if (hash === "#admin") return "admin";
+  return "builder";
 }
 
-function Shell({ catalog, session }: { catalog: Catalog; session: Session }) {
+function Shell({ catalog, session, profile }: { catalog: Catalog; session: Session; profile: Profile }) {
   const schedule = useSchedule(catalog.courses, storageKeyFor(session.user.id));
   const [term, setTerm] = useState<GridTerm>("first_term");
   const [page, setPage] = useState<Page>(pageFromHash);
@@ -129,6 +137,7 @@ function Shell({ catalog, session }: { catalog: Catalog; session: Session }) {
           <nav aria-label="Main" className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto">
             {tab("builder", "Builder")}
             {tab("compare", "Compare weeks")}
+            {profile.is_admin && tab("admin", "Admin")}
             <button
               type="button"
               onClick={() => setPrioritiesOpen(true)}
@@ -166,7 +175,9 @@ function Shell({ catalog, session }: { catalog: Catalog; session: Session }) {
       <PlanBar schedule={schedule} userId={session.user.id} />
 
       <main className="flex-1">
-        {page === "compare" ? (
+        {page === "admin" ? (
+          <Admin profile={profile} />
+        ) : page === "compare" ? (
           <Compare
             courses={catalog.courses}
             schedule={schedule}
