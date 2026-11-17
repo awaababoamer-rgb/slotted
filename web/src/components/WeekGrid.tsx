@@ -166,6 +166,12 @@ export function WeekGrid({ picks, colorOf, conflicted, locked, moved = new Set()
               const dayIndex = DAYS.indexOf(ev.day as (typeof DAYS)[number]);
               if (dayIndex === -1) return null;
               const h = (ev.end - ev.start) * PX_PER_MIN;
+              // Full width of the day, unless a class shares the time; then sit beside it.
+              const sharesTime = blocks.some(
+                ({ block: b }) => b.day === ev.day && b.start < ev.end && ev.start < b.end,
+              );
+              const offset = sharesTime ? 0.55 : 0;
+              const share = sharesTime ? 0.45 : 1;
               return (
                 <div
                   key={ev.id}
@@ -177,12 +183,13 @@ ${ev.detail}`}
                   style={{
                     top: (ev.start - first) * PX_PER_MIN + 1,
                     height: h - 2,
-                    left: `calc(${(dayIndex + 0.55) * DAY_WIDTH}% + 1px)`,
-                    width: `calc(${DAY_WIDTH * 0.45}% - 4px)`,
+                    left: `calc(${(dayIndex + offset) * DAY_WIDTH}% + 3px)`,
+                    width: `calc(${DAY_WIDTH * share}% - 6px)`,
                   }}
                 >
                   <div className="font-bold">★ {ev.title}</div>
-                  {h > 40 && <div className="opacity-80">{ev.detail.split(" · ")[1]}</div>}
+                  {h > 30 && <div className="opacity-80">{ev.detail.split(" · ")[1]}</div>}
+                  {h > 52 && ev.detail.split(" · ")[2] && <div className="truncate opacity-80">{ev.detail.split(" · ")[2]}</div>}
                 </div>
               );
             })}
