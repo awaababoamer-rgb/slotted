@@ -7,9 +7,12 @@ import { ConflictBanner, groupConflicts, type BannerMode } from "../components/C
 import { CourseSearch } from "../components/CourseSearch";
 import { ExportButton } from "../components/ExportButton";
 import { MyCourses } from "../components/MyCourses";
+import { FitsPanel } from "../components/FitsPanel";
 import { SmartResolve } from "../components/SmartResolve";
 import { WeekGrid } from "../components/WeekGrid";
 import { DAY_LONG, formatTime, sectionLabel, TERM_LABELS } from "../lib/format";
+import type { MyEventsApi } from "../data/myEvents";
+import { eventsForGrid, fixEventWarnings } from "../lib/eventGrid";
 import { blocksOfPick } from "../lib/grid";
 import type { ScheduleApi } from "../state/useSchedule";
 
@@ -20,6 +23,7 @@ interface Props {
   schedule: ScheduleApi;
   term: GridTerm;
   onEditPriorities: () => void;
+  myEvents: MyEventsApi;
 }
 
 function hoursText(hours: number) {
@@ -55,7 +59,7 @@ function PrioritiesCard({ prefs, onEdit, className }: { prefs: Preferences; onEd
   );
 }
 
-export function Builder({ courses, schedule, term, onEditPriorities }: Props) {
+export function Builder({ courses, schedule, term, onEditPriorities, myEvents }: Props) {
   const { picks, conflictReport, state } = schedule;
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -179,6 +183,7 @@ export function Builder({ courses, schedule, term, onEditPriorities }: Props) {
               locked={locked}
               moved={moved}
               ghosts={termGhosts}
+              events={eventsForGrid(myEvents.added, term)}
             />
           </div>
         </section>
@@ -189,6 +194,7 @@ export function Builder({ courses, schedule, term, onEditPriorities }: Props) {
             <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-brand-700" />Moved by a fix</li>
             <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-brand-600/40" />Where it was</li>
             <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded bg-brand-700" />Locked section</li>
+            <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-good-700 bg-good-50" />Your club event</li>
           </ul>
           <ExportButton
             picks={picks}
@@ -236,6 +242,7 @@ export function Builder({ courses, schedule, term, onEditPriorities }: Props) {
           }}
           onApply={applyFix}
           onUndo={schedule.undoApplied}
+          warningsFor={(fix) => fixEventWarnings(fix, myEvents.added, (code) => schedule.byCode.get(code)?.term ?? "unknown")}
         />
         {fixResult.fixes.length > 0 && (
           <a
@@ -245,6 +252,7 @@ export function Builder({ courses, schedule, term, onEditPriorities }: Props) {
             Compare every fix as a full week <span aria-hidden>→</span>
           </a>
         )}
+        <FitsPanel picks={picks} myEvents={myEvents} />
         <PrioritiesCard prefs={state.prefs} onEdit={onEditPriorities} className="lg:hidden" />
       </aside>
     </div>

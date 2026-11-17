@@ -5,6 +5,7 @@ import { useSession } from "./auth/useSession";
 import { CalendarIcon } from "./components/icons";
 import { PlanBar } from "./components/PlanBar";
 import { loadCatalog, type Catalog } from "./data/catalog";
+import { useMyEvents } from "./data/myEvents";
 import { loadProfile, type Profile } from "./data/profile";
 import { supabase, supabaseConfigured } from "./data/supabase";
 import { formatDate, TERM_LABELS } from "./lib/format";
@@ -87,6 +88,7 @@ function pageFromHash(): Page {
 
 function Shell({ catalog, session, profile }: { catalog: Catalog; session: Session; profile: Profile }) {
   const schedule = useSchedule(catalog.courses, storageKeyFor(session.user.id));
+  const myEvents = useMyEvents();
   const [term, setTerm] = useState<GridTerm>("first_term");
   const [page, setPage] = useState<Page>(pageFromHash);
   const [prioritiesOpen, setPrioritiesOpen] = useState(false);
@@ -184,7 +186,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
         {page === "admin" ? (
           <Admin profile={profile} />
         ) : page === "events" ? (
-          <Events userId={session.user.id} picks={schedule.picks} />
+          <Events userId={session.user.id} picks={schedule.picks} myEvents={myEvents} />
         ) : page === "clubs" ? (
           <Clubs userId={session.user.id} />
         ) : page === "compare" ? (
@@ -201,6 +203,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
             schedule={schedule}
             term={term}
             onEditPriorities={() => setPrioritiesOpen(true)}
+            myEvents={myEvents}
           />
         )}
       </main>

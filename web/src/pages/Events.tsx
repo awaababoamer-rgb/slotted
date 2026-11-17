@@ -2,7 +2,8 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { classifyEvent, hasKnownTimes, type EventFit, type Pick } from "@slotted/engine";
 import { EventForm } from "../components/EventForm";
 import { CATEGORIES, CATEGORY_LABELS, listVisibleClubs, myExecClubIds, type Category, type Club } from "../data/clubs";
-import { deleteEvent, listEvents, mediaUrl, type ClubEvent } from "../data/events";
+import { deleteEvent, mediaUrl, type ClubEvent } from "../data/events";
+import type { MyEventsApi } from "../data/myEvents";
 import { formatRange, formatTime } from "../lib/format";
 
 function todayISO(): string {
@@ -29,8 +30,9 @@ function FitBadge({ fit }: { fit: EventFit }) {
   return <span className="rounded-full bg-conflict-50 px-2 py-0.5 text-[11px] font-semibold text-conflict-700">Clashes with class</span>;
 }
 
-function EventCard({ event, fit, canManage, onEdit, onDelete }: {
-  event: ClubEvent; fit: EventFit; canManage: boolean; onEdit: () => void; onDelete: () => void;
+function EventCard({ event, fit, canManage, added, onToggle, onEdit, onDelete }: {
+  event: ClubEvent; fit: EventFit; canManage: boolean; added: boolean;
+  onToggle: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   return (
     <article className="flex flex-col rounded-2xl border border-line bg-white p-4 shadow-sm">
@@ -61,6 +63,18 @@ function EventCard({ event, fit, canManage, onEdit, onDelete }: {
           )}
         </div>
       )}
+      <div className="mt-auto pt-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-pressed={added}
+          className={`w-full rounded-lg px-3 py-2 text-sm font-semibold ${
+            added ? "border border-good-200 bg-good-50 text-good-700" : "bg-brand-700 text-white hover:bg-brand-800"
+          }`}
+        >
+          {added ? "✓ In your week · Remove" : "Add to my week"}
+        </button>
+      </div>
       {canManage && (
         <div className="mt-3 flex gap-3 border-t border-line pt-3 text-sm">
           <button type="button" onClick={onEdit} className="font-semibold text-brand-700 hover:underline">Edit</button>
@@ -72,8 +86,8 @@ function EventCard({ event, fit, canManage, onEdit, onDelete }: {
 }
 
 /** The club events board: events filtered against the student's schedule. */
-export function Events({ userId, picks }: { userId: string; picks: Pick[] }) {
-  const [events, setEvents] = useState<ClubEvent[] | null>(null);
+export function Events({ userId, picks, myEvents }: { userId: string; picks: Pick[]; myEvents: MyEventsApi }) {
+  const { events } = myEvents;
   const [clubs, setClubs] = useState<Club[]>([]);
   const [execIds, setExecIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -87,8 +101,7 @@ export function Events({ userId, picks }: { userId: string; picks: Pick[] }) {
 
   const refresh = async () => {
     try {
-      const [ev, cl, ex] = await Promise.all([listEvents({ fromDate: todayISO() }), listVisibleClubs(), myExecClubIds(userId)]);
-      setEvents(ev);
+      const [, cl, ex] = await Promise.all([myEvents.refresh(), listVisibleClubs(), myExecClubIds(userId)]);
       setClubs(cl);
       setExecIds(ex);
     } catch (e) {
@@ -136,6 +149,7 @@ export function Events({ userId, picks }: { userId: string; picks: Pick[] }) {
         )}
       </div>
 
+      {myEvents.error && <p role="alert" className="mt-4 rounded-xl bg-conflict-50 px-4 py-3 text-sm text-conflict-700">{myEvents.error}</p>}
       {error && <p role="alert" className="mt-4 rounded-xl bg-conflict-50 px-4 py-3 text-sm text-conflict-700">{error}</p>}
 
       {formOpen && (
@@ -199,6 +213,8 @@ export function Events({ userId, picks }: { userId: string; picks: Pick[] }) {
               event={event}
               fit={fit}
               canManage={execIds.has(event.club_id)}
+              added={myEvents.addedIds.has(event.id)}
+              onToggle={() => void myEvents.toggle(event.id)}
               onEdit={() => { setEditing(event); setFormOpen(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
               onDelete={() => void remove(event)}
             />

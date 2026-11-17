@@ -11,6 +11,8 @@ interface Props {
   hiddenByLocks: number;
   /** False if no fix exists even with locks and "only move labs" turned off. */
   fixableWithoutRules: boolean;
+  /** Warnings when a fix would move a class onto a club event the student added. */
+  warningsFor?: (fix: Fix) => string[];
   current: Pick[];
   gridTerm: GridTerm;
   previewIndex: number | null;
@@ -23,9 +25,9 @@ interface Props {
 const hours = (h: number) => (Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`);
 
 function FixCard({
-  fix, index, title: name, current, gridTerm, previewing, applied, onPreview, onApply,
+  fix, index, title: name, current, gridTerm, previewing, applied, onPreview, onApply, warnings = [],
 }: {
-  fix: Fix; index: number; title?: string; current: Pick[]; gridTerm: GridTerm;
+  fix: Fix; index: number; title?: string; current: Pick[]; gridTerm: GridTerm; warnings?: string[];
   previewing: boolean; applied: boolean;
   onPreview?: () => void; onApply?: () => void;
 }) {
@@ -82,6 +84,11 @@ function FixCard({
       </dl>
       <p className="mt-1 text-[11px] text-muted">Stats for your {TERM_LABELS[term]} week.</p>
       <p className="mt-2 text-xs text-muted">{explainFix(fix, current, term)}</p>
+      {warnings.length > 0 && (
+        <ul className="mt-2 space-y-1 rounded-lg bg-[#fdf3d6] px-2.5 py-2 text-xs text-[#7a5300]">
+          {warnings.map((w) => <li key={w}>⚠ {w}</li>)}
+        </ul>
+      )}
 
       {(onPreview || onApply) && (
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -166,6 +173,7 @@ export function SmartResolve(props: Props) {
                 applied={false}
                 onPreview={() => props.onPreview(previewIndex === i ? null : i)}
                 onApply={() => props.onApply(i)}
+                warnings={props.warningsFor?.(fix)}
               />
             ))}
           </div>

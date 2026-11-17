@@ -17,6 +17,18 @@ interface Props {
   moved?: Set<number>;
   /** Where moved sections used to be (drawn as a faded outline). */
   ghosts?: Pick[];
+  /** Club events the student added. Drawn dashed, never counted as conflicts. */
+  events?: GridEvent[];
+}
+
+export interface GridEvent {
+  id: string;
+  day: string; // "Mon"
+  start: number; // minutes since midnight
+  end: number;
+  title: string;
+  /** e.g. "Thu Oct 8 · 5:00–7:00 PM · UCC 56" */
+  detail: string;
 }
 
 function hourLabel(minutes: number) {
@@ -34,14 +46,14 @@ function blockKey(block: GridBlock, index: number) {
 }
 
 /** Monday–Friday week grid. Each meeting is its own block, so a 2-hour Monday and 1-hour Wednesday both show correctly. */
-export function WeekGrid({ picks, colorOf, conflicted, locked, moved = new Set(), ghosts = [] }: Props) {
+export function WeekGrid({ picks, colorOf, conflicted, locked, moved = new Set(), ghosts = [], events = [] }: Props) {
   const blocks: { block: GridBlock; key: string }[] = picks.flatMap((p) =>
     blocksOfPick(p).map((block, i) => ({ block, key: blockKey(block, i) })),
   );
   const ghostBlocks = ghosts.flatMap(blocksOfPick);
 
   // Show 9 AM–6 PM at least, growing to fit early or late classes.
-  const all = [...blocks.map((b) => b.block), ...ghostBlocks];
+  const all: { start: number; end: number }[] = [...blocks.map((b) => b.block), ...ghostBlocks, ...events];
   const earliest = Math.min(9 * 60, ...all.map((b) => b.start));
   const latest = Math.max(18 * 60, ...all.map((b) => b.end));
   const first = Math.floor(earliest / 60) * 60;
@@ -143,6 +155,34 @@ export function WeekGrid({ picks, colorOf, conflicted, locked, moved = new Set()
                   <div>{sectionLabel(section)}</div>
                   {blockHeight > 44 && <div>{formatRange(block.startText, block.endText)}</div>}
                   {blockHeight > 58 && <div className="truncate opacity-80">{room}</div>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Added club events: on top, along the right edge of the day, dashed. */}
+          <div className="pointer-events-none absolute inset-y-0 right-0 left-[3.25rem]" role="list" aria-label="Your club events">
+            {events.map((ev) => {
+              const dayIndex = DAYS.indexOf(ev.day as (typeof DAYS)[number]);
+              if (dayIndex === -1) return null;
+              const h = (ev.end - ev.start) * PX_PER_MIN;
+              return (
+                <div
+                  key={ev.id}
+                  role="listitem"
+                  title={`${ev.title}
+${ev.detail}`}
+                  aria-label={`Club event: ${ev.title}, ${ev.detail}`}
+                  className="pointer-events-auto absolute overflow-hidden rounded-lg border-2 border-dashed border-good-700 bg-good-50/90 px-1.5 py-1 text-[11px] leading-tight text-good-700 shadow-sm"
+                  style={{
+                    top: (ev.start - first) * PX_PER_MIN + 1,
+                    height: h - 2,
+                    left: `calc(${(dayIndex + 0.55) * DAY_WIDTH}% + 1px)`,
+                    width: `calc(${DAY_WIDTH * 0.45}% - 4px)`,
+                  }}
+                >
+                  <div className="font-bold">★ {ev.title}</div>
+                  {h > 40 && <div className="opacity-80">{ev.detail.split(" · ")[1]}</div>}
                 </div>
               );
             })}
