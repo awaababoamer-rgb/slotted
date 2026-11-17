@@ -13,6 +13,7 @@ import { PrioritiesDialog } from "./components/PrioritiesDialog";
 import type { WeekOption } from "./lib/weekOptions";
 import { Builder } from "./pages/Builder";
 import { Admin } from "./pages/Admin";
+import { Clubs } from "./pages/Clubs";
 import { Compare } from "./pages/Compare";
 import { storageKeyFor, useSchedule } from "./state/useSchedule";
 
@@ -72,11 +73,12 @@ function SignedIn({ session }: { session: Session }) {
   return <Shell catalog={catalog} session={session} profile={profile} />;
 }
 
-type Page = "builder" | "compare" | "admin";
+type Page = "builder" | "compare" | "clubs" | "admin";
 
 function pageFromHash(): Page {
   const hash = window.location.hash;
   if (hash === "#compare") return "compare";
+  if (hash === "#clubs") return "clubs";
   if (hash === "#admin") return "admin";
   return "builder";
 }
@@ -137,6 +139,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
           <nav aria-label="Main" className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto">
             {tab("builder", "Builder")}
             {tab("compare", "Compare weeks")}
+            {tab("clubs", "Clubs")}
             {profile.is_admin && tab("admin", "Admin")}
             <button
               type="button"
@@ -177,6 +180,8 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
       <main className="flex-1">
         {page === "admin" ? (
           <Admin profile={profile} />
+        ) : page === "clubs" ? (
+          <Clubs userId={session.user.id} />
         ) : page === "compare" ? (
           <Compare
             courses={catalog.courses}
