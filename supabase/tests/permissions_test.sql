@@ -112,6 +112,8 @@ select pg_temp.check('A rating of 6 is rejected', false,
       values ('COMPSCI 1020A', 'X', 'Winter 2026', 6, 3, 3, true) $q$);
 select pg_temp.check('Students cannot read the reviews table directly (author hidden)', false,
   $q$ select user_id from public.reviews $q$);
+select pg_temp.check_rows('Alice can edit her own review (1 row changed)', 1,
+  $q$ update public.reviews set comment = 'Great' where comment = 'Great' returning 1 $q$);
 select pg_temp.check_rows('Alice sees her review as hers in the anonymous view', 1,
   $q$ select 1 from public.reviews_public where comment = 'Great' and is_mine $q$);
 
@@ -142,8 +144,9 @@ select pg_temp.check_rows('Bob cannot see other profiles', 1,
 
 -- ---------- Results ----------
 reset role;
-select test, outcome from pg_temp.results order by n;
-select count(*) filter (where outcome = 'PASS') as passed,
-       count(*) filter (where outcome <> 'PASS') as failed from pg_temp.results;
+-- The editor shows the LAST result: one line per test, failures first.
+select case when outcome = 'PASS' then 'PASS  ' else 'FAIL  ' end || test ||
+       case when outcome = 'PASS' then '' else '  -> ' || outcome end as result
+from pg_temp.results order by (outcome = 'PASS'), n;
 
 rollback;  -- throw away every test row

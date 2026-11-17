@@ -99,6 +99,9 @@ begin
     if old.requested_by <> auth.uid() or old.status <> 'pending' then
       raise exception 'Only admins can change this club' using errcode = 'insufficient_privilege';
     end if;
+    if new.status is distinct from old.status then
+      raise exception 'Only admins can approve or reject a club' using errcode = 'insufficient_privilege';
+    end if;
     new.status := old.status; new.requested_by := old.requested_by;
     new.reviewed_by := old.reviewed_by; new.reviewed_at := old.reviewed_at; new.review_note := old.review_note;
     return new;
@@ -258,6 +261,12 @@ grant insert, update, delete on table public.reviews to authenticated;
 grant select (id, course_code, professor, term_taken, overall, difficulty, workload,
               would_take_again, comment, created_at, updated_at)
   on table public.reviews to authenticated;
+
+-- A read rule is required for edits/deletes to find their row. The author
+-- (user_id) is still hidden by the column-level grant above.
+drop policy if exists "Signed-in students read reviews" on public.reviews;
+create policy "Signed-in students read reviews" on public.reviews
+  for select to authenticated using (true);
 
 drop policy if exists "Students post reviews" on public.reviews;
 create policy "Students post reviews" on public.reviews
