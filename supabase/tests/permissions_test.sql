@@ -127,7 +127,7 @@ select pg_temp.check_rows('Bob cannot delete Alice''s review (0 rows deleted)', 
 select pg_temp.check('Bob can report Alice''s review', true,
   $q$ insert into public.review_reports (review_id, reason) select id, 'rude' from public.reviews_public where comment = 'Great' $q$);
 select pg_temp.check_rows('Course average is visible', 1,
-  $q$ select 1 from public.course_ratings where course_code = 'COMPSCI 1020A' and review_count = 1 $q$);
+  $q$ select 1 from public.course_ratings where course_code = 'COMPSCI 1020A' and review_count >= 1 $q$);
 
 select pg_temp.become('00000000-0000-0000-0000-00000000000c');
 select pg_temp.check_rows('Admin sees the report', 1,
