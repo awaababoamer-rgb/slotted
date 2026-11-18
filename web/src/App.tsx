@@ -5,6 +5,7 @@ import { useSession } from "./auth/useSession";
 import { CalendarIcon } from "./components/icons";
 import { PlanBar } from "./components/PlanBar";
 import { loadCatalog, type Catalog } from "./data/catalog";
+import { useSharing } from "./data/friends";
 import { useMyEvents } from "./data/myEvents";
 import { loadProfile, type Profile } from "./data/profile";
 import { allProfessorRatings, type Ratings } from "./data/reviews";
@@ -19,6 +20,7 @@ import { Clubs } from "./pages/Clubs";
 import { CoursePage } from "./pages/CoursePage";
 import { Events } from "./pages/Events";
 import { FindCourses } from "./pages/FindCourses";
+import { Friends } from "./pages/Friends";
 import { Programs } from "./pages/Programs";
 import { Reviews } from "./pages/Reviews";
 import { Compare } from "./pages/Compare";
@@ -95,13 +97,14 @@ function SignedIn({ session }: { session: Session }) {
   return <Shell catalog={catalog} session={session} profile={profile} />;
 }
 
-type Page = "builder" | "compare" | "programs" | "find" | "events" | "clubs" | "reviews" | "course" | "admin";
+type Page = "builder" | "compare" | "programs" | "find" | "friends" | "events" | "clubs" | "reviews" | "course" | "admin";
 
 function pageFromHash(): Page {
   const hash = window.location.hash;
   if (hash === "#compare") return "compare";
   if (hash === "#programs") return "programs";
   if (hash === "#find") return "find";
+  if (hash === "#friends") return "friends";
   if (hash === "#events") return "events";
   if (hash === "#clubs") return "clubs";
   if (hash === "#reviews") return "reviews";
@@ -113,6 +116,7 @@ function pageFromHash(): Page {
 function Shell({ catalog, session, profile }: { catalog: Catalog; session: Session; profile: Profile }) {
   const schedule = useSchedule(catalog.courses, storageKeyFor(session.user.id));
   const myEvents = useMyEvents();
+  const sharing = useSharing(session.user.id, schedule.state.choices);
   // Professor averages for the Builder. Refreshed whenever you come back to the Builder.
   const [profRatings, setProfRatings] = useState<Map<string, Ratings>>(new Map());
   const [term, setTerm] = useState<GridTerm>("first_term");
@@ -120,7 +124,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
   const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
     const titles: Record<Page, string> = {
-      builder: "Builder", compare: "Compare weeks", programs: "Programs", find: "Find courses", events: "Club events",
+      builder: "Builder", compare: "Compare weeks", programs: "Programs", find: "Find courses", friends: "Friends", events: "Club events",
       reviews: "Course reviews", course: decodeURIComponent(hash.slice("#course/".length)) || "Course",
       clubs: "Clubs", admin: "Admin",
     };
@@ -227,6 +231,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
           {tab("compare", "Compare")}
           {tab("programs", "Programs")}
           {tab("find", "Find courses")}
+          {tab("friends", "Friends")}
           {tab("events", "Events")}
           {tab("reviews", "Reviews")}
           {tab("clubs", "Clubs")}
@@ -240,6 +245,8 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
           <Admin profile={profile} courses={catalog.courses} />
         ) : page === "programs" ? (
           <Programs courses={catalog.courses} schedule={schedule} userId={session.user.id} />
+        ) : page === "friends" ? (
+          <Friends userId={session.user.id} courses={catalog.courses} schedule={schedule} term={term} sharing={sharing} />
         ) : page === "find" ? (
           <FindCourses courses={catalog.courses} schedule={schedule} term={term} />
         ) : page === "events" ? (

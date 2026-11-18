@@ -166,3 +166,20 @@ export function findFittingCourses(
   }
   return results.sort((a, b) => a.addedCost - b.addedCost);
 }
+
+/**
+ * Courses you and a friend could take together: one set of sections (same
+ * lecture, same lab...) that fits around BOTH timetables. Courses either of
+ * you already has are skipped.
+ */
+export function findCoursesTogether(
+  catalog: Course[],
+  mine: Pick[],
+  friend: Pick[],
+  prefs: Preferences,
+  filters: RecommendFilters,
+): CourseFit[] {
+  const taken = new Set([...mine, ...friend].map((p) => p.courseCode));
+  // Checking new sections against both timetables at once = "fits us both".
+  return findFittingCourses(catalog, [...mine, ...friend], prefs, filters).filter((f) => !taken.has(f.course.code));
+}

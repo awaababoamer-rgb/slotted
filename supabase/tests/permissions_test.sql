@@ -189,6 +189,45 @@ select pg_temp.check_rows('Bob sees the published program', 1,
 select pg_temp.check_rows('Bob cannot edit its requirements (0 rows changed)', 0,
   $q$ update public.program_requirements set course_codes = '{}' where program_id in (select id from public.programs where name = 'Test Program') returning 1 $q$);
 
+-- ---------- Friends ----------
+-- Alice shares her timetable; Bob isn't her friend yet.
+select pg_temp.become('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check('Alice can share her timetable', true,
+  $q$ insert into public.shared_schedules (choices) values ('[{"code":"COMPSCI 1020A","picks":{"LEC":13666}}]') $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check_rows('Bob (not a friend) cannot see Alice''s timetable', 0,
+  $q$ select 1 from public.shared_schedules where user_id = '00000000-0000-0000-0000-00000000000a' $q$);
+select pg_temp.check('Bob cannot write a friendship directly (must use a code)', false,
+  $q$ insert into public.friendships (requester, addressee) values ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000a') $q$);
+select pg_temp.check('A wrong friend code is rejected', false, $q$ select public.add_friend('ZZZZZZZZ') $q$);
+select pg_temp.check('Bob can send a request with Alice''s code', true,
+  $q$ select public.add_friend((select friend_code from public.profiles where user_id = '00000000-0000-0000-0000-00000000000a')) $q$);
+select pg_temp.check_rows('Still pending: Bob can''t see Alice''s timetable yet', 0,
+  $q$ select 1 from public.shared_schedules where user_id = '00000000-0000-0000-0000-00000000000a' $q$);
+select pg_temp.check_rows('Bob cannot accept his own request (0 rows changed)', 0,
+  $q$ update public.friendships set status = 'accepted' where requester = '00000000-0000-0000-0000-00000000000b' returning 1 $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check_rows('Someone else cannot see Alice and Bob''s request', 0,
+  $q$ select 1 from public.friendships where requester = '00000000-0000-0000-0000-00000000000b' $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check_rows('Alice accepts Bob''s request', 1,
+  $q$ update public.friendships set status = 'accepted' where requester = '00000000-0000-0000-0000-00000000000b' returning 1 $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check_rows('Now friends: Bob can see Alice''s timetable', 1,
+  $q$ select 1 from public.shared_schedules where user_id = '00000000-0000-0000-0000-00000000000a' $q$);
+select pg_temp.check_rows('Bob cannot change Alice''s timetable (0 rows changed)', 0,
+  $q$ update public.shared_schedules set choices = '[]' where user_id = '00000000-0000-0000-0000-00000000000a' returning 1 $q$);
+select pg_temp.check_rows('my_friends shows Alice to Bob as sharing', 1,
+  $q$ select 1 from public.my_friends() where email = 'alice-test@uwo.ca' and status = 'accepted' and sharing $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check_rows('The admin (not their friend) still cannot see Alice''s timetable', 0,
+  $q$ select 1 from public.shared_schedules where user_id = '00000000-0000-0000-0000-00000000000a' $q$);
+
 -- ---------- Allowed schools ----------
 select pg_temp.become('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check('Bob (not admin) cannot add a school', false,

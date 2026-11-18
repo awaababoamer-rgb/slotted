@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  adjustedRating, findConflicts, findFittingCourses, fitCourse, rankCourses,
+  adjustedRating, findConflicts, findCoursesTogether, findFittingCourses, fitCourse, rankCourses,
   type CourseFit, type CourseRatingSummary,
 } from "../src/index";
 import { catalog, pick } from "./helpers";
@@ -110,5 +110,34 @@ describe("findFittingCourses", () => {
     const fits = findFittingCourses(catalog, current, {}, { term: "first_term", subject: "COMPSCI", level: "2000" });
     expect(fits.length).toBeGreaterThan(0);
     expect(fits.every((f) => /^COMPSCI 2\d{3}/.test(f.course.code))).toBe(true);
+  });
+});
+
+describe("findCoursesTogether", () => {
+  // Me: COMPSCI 1020A LEC 001 (Mon 9:30-11:30, Wed 9:30-10:30).
+  // Friend: MATH 1600A LEC 002 (Mon/Wed/Fri 10:30-11:30).
+  const me = [pick("COMPSCI 1020A", "LEC", "001")];
+  const friend = [pick("MATH 1600A", "LEC", "002")]; // Mon/Wed/Fri 10:30-11:30
+
+  it("only suggests sections that fit both of us, and never courses either of us has", () => {
+    const together = findCoursesTogether(catalog, me, friend, {}, { term: "first_term" });
+    expect(together.length).toBeGreaterThan(0);
+    for (const fit of together) {
+      expect(findConflicts([...me, ...fit.sections]).conflicts).toEqual([]);
+      expect(findConflicts([...friend, ...fit.sections]).conflicts).toEqual([]);
+      expect(["COMPSCI 1020A", "MATH 1600A"]).not.toContain(fit.course.code);
+    }
+  });
+
+  it("drops a course that fits me but clashes with my friend in every section", () => {
+    // Courses that fit around me alone, but not around both of us, must be left out.
+    const onlyMe = findFittingCourses(catalog, me, {}, { term: "first_term" }).map((f) => f.course.code);
+    const both = new Set(findCoursesTogether(catalog, me, friend, {}, { term: "first_term" }).map((f) => f.course.code));
+    const clashesWithFriend = onlyMe.filter((code) => !both.has(code));
+    expect(clashesWithFriend.length).toBeGreaterThan(0); // some fit me but not my friend
+    for (const code of clashesWithFriend.slice(0, 10)) {
+      const fitForFriend = fitCourse(catalog.find((c) => c.code === code)!, [...me, ...friend]);
+      expect(fitForFriend.fits).toBe(false);
+    }
   });
 });
