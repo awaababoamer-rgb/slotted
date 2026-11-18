@@ -190,6 +190,12 @@ select pg_temp.check_rows('Bob cannot edit its requirements (0 rows changed)', 0
   $q$ update public.program_requirements set course_codes = '{}' where program_id in (select id from public.programs where name = 'Test Program') returning 1 $q$);
 
 -- ---------- Friends ----------
+-- In real life Alice tells Bob her code (students can't read each other's profiles),
+-- so the test reads it here, as the test runner, and hands it to Bob.
+reset role;
+select set_config('test.alice_code',
+  (select friend_code from public.profiles where user_id = '00000000-0000-0000-0000-00000000000a'), true);
+
 -- Alice shares her timetable; Bob isn't her friend yet.
 select pg_temp.become('00000000-0000-0000-0000-00000000000a');
 select pg_temp.check('Alice can share her timetable', true,
@@ -202,7 +208,9 @@ select pg_temp.check('Bob cannot write a friendship directly (must use a code)',
   $q$ insert into public.friendships (requester, addressee) values ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000a') $q$);
 select pg_temp.check('A wrong friend code is rejected', false, $q$ select public.add_friend('ZZZZZZZZ') $q$);
 select pg_temp.check('Bob can send a request with Alice''s code', true,
-  $q$ select public.add_friend((select friend_code from public.profiles where user_id = '00000000-0000-0000-0000-00000000000a')) $q$);
+  $q$ select public.add_friend(current_setting('test.alice_code')) $q$);
+select pg_temp.check_rows('Bob cannot read Alice''s friend code from her profile', 0,
+  $q$ select friend_code from public.profiles where user_id = '00000000-0000-0000-0000-00000000000a' $q$);
 select pg_temp.check_rows('Still pending: Bob can''t see Alice''s timetable yet', 0,
   $q$ select 1 from public.shared_schedules where user_id = '00000000-0000-0000-0000-00000000000a' $q$);
 select pg_temp.check_rows('Bob cannot accept his own request (0 rows changed)', 0,
