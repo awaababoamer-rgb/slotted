@@ -3,6 +3,8 @@ import { loadAdminCounts, type AdminCounts } from "../data/admin";
 import { CATEGORY_LABELS, deleteClub, listAllClubs, reviewClub, type ClubRequest } from "../data/clubs";
 import type { Profile } from "../data/profile";
 import { keepReview, listReportedReviews, removeReview, type ReportedReview } from "../data/reviews";
+import type { Course } from "@slotted/engine";
+import { ProgramsAdmin } from "../components/ProgramsAdmin";
 import { SchoolsAdmin } from "../components/SchoolsAdmin";
 import { TeamAdmins } from "../components/TeamAdmins";
 import { courseHref } from "./Reviews";
@@ -66,7 +68,7 @@ function RequestCard({ club, onDone }: { club: ClubRequest; onDone: () => Promis
  * Admin page: approve club requests and moderate reported reviews.
  * Only admins can open it, and the database refuses the data to anyone else.
  */
-export function Admin({ profile }: { profile: Profile }) {
+export function Admin({ profile, courses }: { profile: Profile; courses: Course[] }) {
   const [counts, setCounts] = useState<AdminCounts | null>(null);
   const [clubs, setClubs] = useState<ClubRequest[] | null>(null);
   const [reported, setReported] = useState<ReportedReview[] | null>(null);
@@ -210,6 +212,7 @@ export function Admin({ profile }: { profile: Profile }) {
       </section>
 
       <TeamAdmins myUserId={profile.user_id} />
+      <ProgramsAdmin courses={courses} />
       <SchoolsAdmin />
     </div>
   );

@@ -19,6 +19,7 @@ import { Clubs } from "./pages/Clubs";
 import { CoursePage } from "./pages/CoursePage";
 import { Events } from "./pages/Events";
 import { FindCourses } from "./pages/FindCourses";
+import { Programs } from "./pages/Programs";
 import { Reviews } from "./pages/Reviews";
 import { Compare } from "./pages/Compare";
 import { storageKeyFor, useSchedule } from "./state/useSchedule";
@@ -94,11 +95,12 @@ function SignedIn({ session }: { session: Session }) {
   return <Shell catalog={catalog} session={session} profile={profile} />;
 }
 
-type Page = "builder" | "compare" | "find" | "events" | "clubs" | "reviews" | "course" | "admin";
+type Page = "builder" | "compare" | "programs" | "find" | "events" | "clubs" | "reviews" | "course" | "admin";
 
 function pageFromHash(): Page {
   const hash = window.location.hash;
   if (hash === "#compare") return "compare";
+  if (hash === "#programs") return "programs";
   if (hash === "#find") return "find";
   if (hash === "#events") return "events";
   if (hash === "#clubs") return "clubs";
@@ -118,7 +120,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
   const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
     const titles: Record<Page, string> = {
-      builder: "Builder", compare: "Compare weeks", find: "Find courses", events: "Club events",
+      builder: "Builder", compare: "Compare weeks", programs: "Programs", find: "Find courses", events: "Club events",
       reviews: "Course reviews", course: decodeURIComponent(hash.slice("#course/".length)) || "Course",
       clubs: "Clubs", admin: "Admin",
     };
@@ -223,6 +225,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
         <nav aria-label="Main" className="mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-4 pt-2 [scrollbar-width:none]">
           {tab("builder", "Builder")}
           {tab("compare", "Compare")}
+          {tab("programs", "Programs")}
           {tab("find", "Find courses")}
           {tab("events", "Events")}
           {tab("reviews", "Reviews")}
@@ -234,7 +237,9 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
 
       <main className="flex-1">
         {page === "admin" ? (
-          <Admin profile={profile} />
+          <Admin profile={profile} courses={catalog.courses} />
+        ) : page === "programs" ? (
+          <Programs courses={catalog.courses} schedule={schedule} userId={session.user.id} />
         ) : page === "find" ? (
           <FindCourses courses={catalog.courses} schedule={schedule} term={term} />
         ) : page === "events" ? (

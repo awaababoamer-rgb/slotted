@@ -161,6 +161,34 @@ select pg_temp.check('Admin can remove Bob''s admin access', true,
 select pg_temp.check_rows('Bob is no longer an admin', 1,
   $q$ select 1 from public.profiles where email = 'bob-test@uwo.ca' and not is_admin $q$);
 
+-- ---------- Programs ----------
+select pg_temp.become('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check('Bob (not admin) cannot add a program', false,
+  $q$ insert into public.programs (name, year) values ('Test Program', 2) $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check('Admin can add a draft program', true,
+  $q$ insert into public.programs (name, short_name, year) values ('Test Program', 'Test', 2) $q$);
+select pg_temp.check('Admin can add a requirement group', true,
+  $q$ insert into public.program_requirements (program_id, kind, course_codes)
+      select id, 'required', '{"COMPSCI 1020A"}' from public.programs where name = 'Test Program' $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check_rows('Bob cannot see an unpublished program', 0,
+  $q$ select 1 from public.programs where name = 'Test Program' $q$);
+select pg_temp.check_rows('Bob cannot see its requirements either', 0,
+  $q$ select 1 from public.program_requirements r join public.programs p on p.id = r.program_id where p.name = 'Test Program' $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check('Admin can publish it', true,
+  $q$ update public.programs set published = true where name = 'Test Program' $q$);
+
+select pg_temp.become('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check_rows('Bob sees the published program', 1,
+  $q$ select 1 from public.programs where name = 'Test Program' $q$);
+select pg_temp.check_rows('Bob cannot edit its requirements (0 rows changed)', 0,
+  $q$ update public.program_requirements set course_codes = '{}' where program_id in (select id from public.programs where name = 'Test Program') returning 1 $q$);
+
 -- ---------- Allowed schools ----------
 select pg_temp.become('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check('Bob (not admin) cannot add a school', false,

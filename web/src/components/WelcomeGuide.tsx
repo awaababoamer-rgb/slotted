@@ -22,6 +22,7 @@ export function WelcomeGuide() {
         ))}
       </ol>
       <p className="mt-4 text-sm">
+        Shortcut: <a href="#programs" className="font-semibold text-brand-700 hover:underline">pick your program</a> to add its courses at once (optional).
         Not sure what to take? <a href="#find" className="font-semibold text-brand-700 hover:underline">Find courses that fit →</a>
       </p>
     </section>
