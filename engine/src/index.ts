@@ -8,4 +8,6 @@ export { classifyEvent, termForDate, weekdayOf, MIN_MINUTES_LEFT } from "./event
 export type { EventFit, EventTime } from "./events";
 export { adjustedRating, findFittingCourses, fitCourse, rankCourses, REVIEW_PRIOR } from "./recommend";
 export type { CourseFit, CourseRatingSummary, FitResult, RankOptions, Recommendation, RecommendFilters } from "./recommend";
+export { buildIcs, firstWeekdayOnOrAfter } from "./ics";
+export type { IcsEvent, IcsTerm } from "./ics";
 export type * from "./types";

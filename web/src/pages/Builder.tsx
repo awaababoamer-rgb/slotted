@@ -3,6 +3,7 @@ import {
   findConflicts, hasKnownTimes, scoreSchedule, suggestFixes, termsOverlap,
   type Course, type Fix, type Pick, type Preferences,
 } from "@slotted/engine";
+import { CalendarExport } from "../components/CalendarExport";
 import { ConflictBanner, groupConflicts, type BannerMode } from "../components/ConflictBanner";
 import { CourseSearch } from "../components/CourseSearch";
 import { ExportButton } from "../components/ExportButton";
@@ -200,11 +201,14 @@ export function Builder({ courses, schedule, term, onEditPriorities, myEvents, p
             <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded bg-brand-700" />Locked section</li>
             <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-good-700 bg-good-50" />Your club event</li>
           </ul>
-          <ExportButton
-            picks={picks}
-            conflictCount={groupConflicts(conflictReport.conflicts).length}
-            leftOut={noTimes.map((c) => c.code)}
-          />
+          <div className="flex flex-wrap items-start justify-end gap-2">
+            <CalendarExport picks={picks} term={term} addedEvents={myEvents.added} />
+            <ExportButton
+              picks={picks}
+              conflictCount={groupConflicts(conflictReport.conflicts).length}
+              leftOut={noTimes.map((c) => c.code)}
+            />
+          </div>
         </div>
 
         {(noTimes.length > 0 || online.length > 0 || otherTermCourses.length > 0) && (
