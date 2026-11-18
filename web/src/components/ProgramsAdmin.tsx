@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { entryLabel } from "../lib/programEntry";
 import type { Course } from "@slotted/engine";
 import {
   addRequirement, createProgram, deleteProgram, deleteRequirement, listPrograms, updateProgram, updateRequirement,
@@ -42,8 +43,8 @@ function RequirementEditor({ req, courses, onChange }: { req: Requirement; cours
       <ul className="mt-2 flex flex-wrap gap-1.5">
         {req.course_codes.map((code) => (
           <li key={code} className="flex items-center gap-1 rounded-full bg-page px-2.5 py-0.5 text-xs font-semibold">
-            {code}
-            <button type="button" aria-label={`Remove ${code}`} onClick={() => void save({ course_codes: req.course_codes.filter((c) => c !== code) })}
+            {entryLabel(code)}
+            <button type="button" aria-label={`Remove ${entryLabel(code)}`} onClick={() => void save({ course_codes: req.course_codes.filter((c) => c !== code) })}
               className="text-muted hover:text-conflict-700">×</button>
           </li>
         ))}

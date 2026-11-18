@@ -7,7 +7,7 @@ type GridTerm = "first_term" | "second_term";
 
 // Best guesses; students should check Western's official sessional dates.
 const DEFAULT_DATES: Record<GridTerm, { start: string; end: string }> = {
-  first_term: { start: "2026-09-08", end: "2026-12-08" },
+  first_term: { start: "2026-09-09", end: "2026-12-09" },
   second_term: { start: "2027-01-06", end: "2027-04-07" },
 };
 

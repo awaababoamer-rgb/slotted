@@ -28,6 +28,8 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
+from program_pages import extract_program_section
+
 DMS_URL = "https://draftmyschedule.uwo.ca/"
 DMS_HOST = "draftmyschedule.uwo.ca"
 
@@ -110,6 +112,17 @@ def html_forms(html: str):
     return forms
 
 
+def save_page_content(html: str, index: int) -> str:
+    """Save a page's main content (no scripts, styles, header, nav or forms)."""
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "noscript", "header", "nav", "form", "footer", "iframe"]):
+        tag.decompose()
+    main = soup.find("main") or soup.find(id="content") or soup.body or soup
+    out = LOG_DIR / f"page_{index}.html"
+    out.write_text(str(main), encoding="utf-8")
+    return f"{len(main.get_text(' ', strip=True))} characters of text -> {out.name}"
+
+
 def save_course_tables(html: str, index: int, page_name: str = "course_listing"):
     """Save only the top-level <table> elements of a course page, so we can
     study the layout of sections/times/rooms without the rest of the page."""
@@ -184,9 +197,21 @@ def main():
             elif "html" in content_type and "login" not in record["url"].lower():
                 html = body.decode("utf-8", errors="replace")
                 record["forms"] = html_forms(html)
+                saved = False
                 for page_name in ("course_listing", "courses"):
                     if f"/{page_name}.cfm" in record["url"]:
                         record["saved_tables"] = save_course_tables(html, len(records), page_name)
+                        saved = True
+                # Other DMS pages (e.g. program information): save the main content,
+                # without scripts, header or navigation, for checking before reading.
+                # Program pages: keep ONLY the program section, with anything personal
+                # (name, student number, admission info, your own draft) removed.
+                if not saved and "course_selection" in record["url"]:
+                    section = extract_program_section(html)
+                    if section:
+                        out = LOG_DIR / f"program_{len(records)}.html"
+                        out.write_text(section, encoding="utf-8")
+                        record["saved_program"] = out.name
         except Exception as error:  # some responses (redirects) have no body
             record["body_note"] = type(error).__name__
         records.append(record)

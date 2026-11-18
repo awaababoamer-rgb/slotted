@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Course } from "@slotted/engine";
 import { listPrograms, type Program, type Requirement } from "../data/programs";
 import { termTag } from "../lib/format";
+import { entryLabel, entryVariants, resolveEntry } from "../lib/programEntry";
 import { courseHasTimes, type ScheduleApi } from "../state/useSchedule";
 import { courseHref } from "./Reviews";
 
@@ -23,7 +24,7 @@ function ProgramCard({ program, onPick }: { program: Program; onPick: () => void
       {program.description && <span className="mt-2 text-sm">{program.description}</span>}
       <span className="mt-3 flex flex-wrap gap-1.5">
         {codes.slice(0, 6).map((c) => (
-          <span key={c} className="rounded-md bg-page px-2 py-0.5 text-[11px] font-semibold">{c.replace(/^COMPSCI /, "CS ")}</span>
+          <span key={c} className="rounded-md bg-page px-2 py-0.5 text-[11px] font-semibold">{entryLabel(c).replace(/^COMPSCI /, "CS ")}</span>
         ))}
         {codes.length > 6 && <span className="text-[11px] text-muted">+{codes.length - 6} more</span>}
       </span>
@@ -55,8 +56,19 @@ export function Programs({ courses, schedule, userId }: { courses: Course[]; sch
   }, [programId, storageKey]);
 
   const byCode = useMemo(() => new Map(courses.map((c) => [c.code, c])), [courses]);
-  const mine = new Set(schedule.state.choices.map((c) => c.code));
+  const mine = useMemo(() => new Set(schedule.state.choices.map((c) => c.code)), [schedule.state.choices]);
   const program = programs?.find((p) => p.id === programId) ?? null;
+
+  // Each entry may list alternatives (2208A or 2208B): pick the one that fits your week.
+  const resolved = useMemo(() => {
+    const map = new Map<string, Course | undefined>();
+    for (const req of program?.requirements ?? []) {
+      for (const entry of req.course_codes) {
+        if (!map.has(entry)) map.set(entry, resolveEntry(entry, byCode, mine, schedule.picks, schedule.state.prefs));
+      }
+    }
+    return map;
+  }, [program, byCode, mine, schedule.picks, schedule.state.prefs]);
 
   function toggleChoice(req: Requirement, code: string) {
     setChosen((prev) => {
@@ -72,7 +84,10 @@ export function Programs({ courses, schedule, userId }: { courses: Course[]; sch
     ? [...new Set([
         ...program.requirements.filter((r) => r.kind === "required").flatMap((r) => r.course_codes),
         ...program.requirements.filter((r) => r.kind === "choose").flatMap((r) => chosen[r.id] ?? []),
-      ])].filter((code) => byCode.has(code) && !mine.has(code))
+      ])]
+        .filter((entry) => !entryVariants(entry).some((c) => mine.has(c)))
+        .map((entry) => resolved.get(entry)?.code)
+        .filter((code): code is string => !!code)
     : [];
 
   function addAll() {
@@ -131,18 +146,19 @@ export function Programs({ courses, schedule, userId }: { courses: Course[]; sch
             </h2>
             <ul className="mt-2 divide-y divide-line">
               {req.course_codes.map((code) => {
-                const course = byCode.get(code);
-                const isMine = mine.has(code);
+                const course = resolved.get(code);
+                const isMine = entryVariants(code).some((c) => mine.has(c));
                 const picked = (chosen[req.id] ?? []).includes(code);
+                const label = entryLabel(code);
                 return (
                   <li key={code} className="flex items-center gap-3 py-2">
                     {req.kind === "choose" && (
                       <input type="checkbox" checked={picked || isMine} disabled={isMine || !course}
-                        onChange={() => toggleChoice(req, code)} aria-label={`Choose ${code}`}
+                        onChange={() => toggleChoice(req, code)} aria-label={`Choose ${label}`}
                         className="size-4 accent-brand-700" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <a href={courseHref(code)} className="text-sm font-semibold hover:text-brand-700 hover:underline">{code}</a>
+                      <a href={courseHref(course?.code ?? entryVariants(code)[0])} className="text-sm font-semibold hover:text-brand-700 hover:underline">{label}</a>
                       <p className="truncate text-xs text-muted">{String(course?.title ?? "")}</p>
                     </div>
                     <CourseStatus course={course} added={isMine} />
