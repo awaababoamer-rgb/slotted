@@ -2,7 +2,10 @@
 // catalog already loaded in the browser and use the schedule engine, so the
 // assistant's facts come from our data, not from the AI's memory.
 
-import { checkCredits, courseCredits, findFittingCourses, hasKnownTimes, rankCourses, type Course, type Day } from "@slotted/engine";
+import {
+  adjustedRating, checkCredits, courseCredits, findFittingCourses, fitCourse, hasKnownTimes, rankCourses, termsOverlap,
+  type Course, type Day,
+} from "@slotted/engine";
 import type { Ratings } from "../data/reviews";
 import type { ScheduleApi } from "../state/useSchedule";
 import { formatCredits, formatMeetings, formatRooms, sectionLabel, termTag, TERM_LABELS } from "./format";
@@ -18,6 +21,16 @@ export interface ToolEnv {
   byCode: Map<string, Course>;
   schedule: ScheduleApi;
   ratings: Map<string, Ratings>;
+  /** The term tab the student is looking at, used when they don't name one. */
+  term: "first_term" | "second_term";
+}
+
+/** "fall" / "winter" (or the older "first_term" / "second_term") -> the engine's term. */
+function toTerm(value: unknown): "first_term" | "second_term" | undefined {
+  const v = String(value ?? "").toLowerCase();
+  if (v === "fall" || v === "first_term") return "first_term";
+  if (v === "winter" || v === "second_term") return "second_term";
+  return undefined;
 }
 
 const ratingText = (r: Ratings | undefined) =>
@@ -40,7 +53,8 @@ function searchCourses(env: ToolEnv, args: { query?: string; term?: string }) {
   if (!q) return { results: [] };
   const words = q.split(/\s+/);
   const matches = env.courses.filter((c) => {
-    if (args.term && args.term !== "any" && c.term !== args.term && c.term !== "full_year") return false;
+    const wanted = toTerm(args.term);
+    if (wanted && !termsOverlap(c.term, wanted)) return false;
     const hay = `${c.code} ${String(c.title ?? "")}`.toUpperCase();
     return words.every((w) => hay.includes(w));
   });
@@ -86,7 +100,7 @@ function getCourse(env: ToolEnv, args: { code?: string }) {
 function findFitting(env: ToolEnv, args: {
   term?: string; subject?: string; level?: string; prefer_lighter?: boolean; free_day?: string; not_before?: string;
 }) {
-  const term = args.term === "second_term" ? "second_term" : "first_term";
+  const term = toTerm(args.term) ?? env.term;
   const fits = findFittingCourses(env.courses, env.schedule.picks, env.schedule.state.prefs, {
     term,
     subject: args.subject ? args.subject.toUpperCase() : undefined,
@@ -106,9 +120,43 @@ function findFitting(env: ToolEnv, args: {
     top: ranked.map((r) => ({
       code: r.course.code,
       title: r.course.title,
+      term: termTag(r.course.term),
       sections: r.sections.map((p) => `${sectionLabel(p.section)} ${formatMeetings(p.section.meetings) || "online"}`).join("; "),
       rating: ratingText(env.ratings.get(r.course.code)),
       why: r.reasons.join("; ") || undefined,
+    })),
+  };
+}
+
+function topRated(env: ToolEnv, args: { term?: string; subject?: string; level?: string; only_fitting?: boolean }) {
+  const wanted = toTerm(args.term);
+  const reviewed = [...env.ratings.values()].filter((r) => r.review_count > 0);
+  const rows = reviewed
+    .map((r) => ({ r, course: env.byCode.get(r.course_code) }))
+    .filter((x): x is { r: Ratings; course: Course } => !!x.course)
+    .filter(({ course }) => !wanted || termsOverlap(course.term, wanted))
+    .filter(({ course }) => !args.subject || course.code.startsWith(`${args.subject.toUpperCase()} `))
+    .filter(({ course }) => !args.level || course.code.split(" ")[1]?.[0] === args.level[0])
+    .map(({ r, course }) => {
+      const fit = fitCourse(course, env.schedule.picks, env.schedule.state.prefs);
+      return {
+        course, r, score: adjustedRating(r.overall, r.review_count),
+        fits: fit.fits ? "fits your week" : fit.reason === "already in schedule" ? "already in your week" : `doesn't fit (${fit.reason})`,
+      };
+    })
+    .filter((x) => !args.only_fitting || x.fits === "fits your week")
+    .sort((a, b) => b.score - a.score);
+  return {
+    courses_with_reviews_in_slotted: reviewed.length,
+    matching: rows.length,
+    note: rows.length === 0 ? "No courses matching this request have reviews yet." : undefined,
+    results: rows.slice(0, 8).map(({ course, r, fits }) => ({
+      code: course.code,
+      title: course.title,
+      term: termTag(course.term),
+      credits: courseCredits(course),
+      rating: ratingText(r),
+      fits,
     })),
   };
 }
@@ -122,6 +170,8 @@ export function runTool(env: ToolEnv, name: string, args: Record<string, unknown
       return getCourse(env, args);
     case "find_fitting_courses":
       return findFitting(env, args);
+    case "top_rated_courses":
+      return topRated(env, args);
     case "propose_add_course":
     case "propose_remove_course": {
       const kind = name === "propose_add_course" ? "add" : "remove";

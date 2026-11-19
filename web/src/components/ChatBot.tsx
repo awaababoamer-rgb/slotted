@@ -103,7 +103,17 @@ export function ChatBot({ courses, schedule, term }: { courses: Course[]; schedu
     setMessages((m) => [...m, { from: "me", text: question }]);
     setBusy(true);
 
-    const env: ToolEnv = { courses, byCode, schedule, ratings };
+    // Make sure reviews have loaded, or rating questions would see none.
+    let loadedRatings = ratings;
+    if (loadedRatings.size === 0) {
+      try {
+        loadedRatings = await allCourseRatings();
+        setRatings(loadedRatings);
+      } catch {
+        // Answer without ratings rather than not at all.
+      }
+    }
+    const env: ToolEnv = { courses, byCode, schedule, ratings: loadedRatings, term };
     const proposals: Proposal[] = [];
     let contents: Content[] = [...history, { role: "user", parts: [{ text: question }] }];
     try {

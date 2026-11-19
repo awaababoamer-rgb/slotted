@@ -38,8 +38,10 @@ Help the student plan their timetable: find courses, compare them, explain confl
 - Slotted does not check prerequisites, breadth requirements or program rules. When it matters, tell the student to confirm with the Academic Calendar or an academic counsellor.
 - Never ask for passwords, student numbers or other personal information.
 - Don't write assignments, essays or exam answers; politely say that's outside what you do.
-- Keep answers short (under about 120 words), friendly and in plain language. Use full course codes like "COMPSCI 2210A". Times use a 12-hour clock.
-- Some courses have no known meeting times yet; say that instead of guessing.`;
+- Keep answers short (under about 120 words), friendly and in plain language. Use full course codes like "COMPSCI 2210A". Times use a 12-hour clock. Never use tables; use a short bulleted list (at most 5 courses) instead.
+- Some courses have no known meeting times yet; say that instead of guessing.
+- Terms: Fall runs September to December, Winter runs January to April. Use the term the student names; if they don't name one, use the term they are looking at (see "About the student"). Always state each course's term exactly as the tools' "term" field gives it; never guess it from the course code.
+- Ratings come only from the tools (top_rated_courses, get_course, search_courses, find_fitting_courses). Very few courses have reviews so far. For "good rating" or "best reviewed" questions, call top_rated_courses. If it returns nothing, say that no courses matching the request have reviews yet; never describe a course as well rated unless a tool returned its rating.`;
 
 const TOOLS = [{
   functionDeclarations: [
@@ -50,7 +52,7 @@ const TOOLS = [{
         type: "object",
         properties: {
           query: { type: "string", description: 'e.g. "COMPSCI 2210", "psychology", "data"' },
-          term: { type: "string", enum: ["first_term", "second_term", "any"], description: "Fall = first_term, Winter = second_term" },
+          term: { type: "string", enum: ["fall", "winter", "any"], description: "fall = September to December, winter = January to April" },
         },
         required: ["query"],
       },
@@ -70,7 +72,7 @@ const TOOLS = [{
       parameters: {
         type: "object",
         properties: {
-          term: { type: "string", enum: ["first_term", "second_term"] },
+          term: { type: "string", enum: ["fall", "winter"], description: "fall = September to December, winter = January to April" },
           subject: { type: "string", description: 'Optional subject code, e.g. "PSYCHOL", "COMPSCI"' },
           level: { type: "string", enum: ["1000", "2000", "3000", "4000"] },
           prefer_lighter: { type: "boolean", description: "Favour lighter workload / easier courses" },
@@ -78,6 +80,19 @@ const TOOLS = [{
           not_before: { type: "string", description: 'Only courses whose classes start at or after this time, "HH:MM" 24-hour' },
         },
         required: ["term"],
+      },
+    },
+    {
+      name: "top_rated_courses",
+      description: "Courses with student reviews, best rated first (averages are adjusted so one review can't beat many). Says whether each fits the student's week. Use for any question about good ratings, best or easiest courses.",
+      parameters: {
+        type: "object",
+        properties: {
+          term: { type: "string", enum: ["fall", "winter", "any"], description: "fall = September to December, winter = January to April" },
+          subject: { type: "string", description: 'Optional subject code, e.g. "PSYCHOL"' },
+          level: { type: "string", enum: ["1000", "2000", "3000", "4000"] },
+          only_fitting: { type: "boolean", description: "Only courses with sections that fit the student's week" },
+        },
       },
     },
     {
