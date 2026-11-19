@@ -114,7 +114,7 @@ function pageFromHash(): Page {
   return "builder";
 }
 
-function Shell({ catalog, session, profile }: { catalog: Catalog; session: Session; profile: Profile }) {
+export function Shell({ catalog, session, profile }: { catalog: Catalog; session: Session; profile: Profile }) {
   const schedule = useSchedule(catalog.courses, storageKeyFor(session.user.id));
   const myEvents = useMyEvents();
   const sharing = useSharing(session.user.id, schedule.state.choices);
@@ -125,7 +125,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
   const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
     const titles: Record<Page, string> = {
-      builder: "Builder", compare: "Compare weeks", programs: "Programs", find: "Find courses", friends: "Friends", events: "Club events",
+      builder: "My week", compare: "Compare weeks", programs: "Programs", find: "Find courses", friends: "Friends", events: "Club events",
       reviews: "Course reviews", course: decodeURIComponent(hash.slice("#course/".length)) || "Course",
       clubs: "Clubs", admin: "Admin",
     };
@@ -155,6 +155,22 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  // Header menus (More, account) close when you click anywhere else or change page.
+  useEffect(() => {
+    const closeMenus = (e?: Event) => {
+      document.querySelectorAll<HTMLDetailsElement>("header details[open]").forEach((menu) => {
+        if (!e || !menu.contains(e.target as Node)) menu.removeAttribute("open");
+      });
+    };
+    const onHashChange = () => closeMenus();
+    document.addEventListener("click", closeMenus);
+    window.addEventListener("hashchange", onHashChange);
+    return () => {
+      document.removeEventListener("click", closeMenus);
+      window.removeEventListener("hashchange", onHashChange);
+    };
+  }, []);
+
   /** "Use this week" on Compare: go back to the Builder, then apply so the classes visibly slide. */
   function chooseWeek(option: WeekOption) {
     window.location.hash = "#builder";
@@ -167,36 +183,64 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
       <a
         href={`#${target}`}
         aria-current={active ? "page" : undefined}
-        className={`border-b-2 px-3 pb-2.5 pt-1 text-sm whitespace-nowrap transition-colors ${
-          active ? "border-brand-700 font-semibold text-brand-700" : "border-transparent text-muted hover:text-ink"
+        className={`rounded-lg px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${
+          active ? "bg-brand-50 font-semibold text-brand-700" : "text-muted hover:bg-page hover:text-ink"
         }`}
       >
         {label}
       </a>
     );
   };
+  // Less-used pages live in a "More" menu so the main bar stays simple.
+  const morePages: [Page, string][] = [
+    ["programs", "Programs"], ["friends", "Friends"], ["clubs", "Clubs"],
+    ...(profile.is_admin ? [["admin", "Admin"] as [Page, string]] : []),
+  ];
+  const moreActive = morePages.some(([p]) => p === page);
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 pt-3">
-          <a href="#builder" className="flex items-center gap-2.5" aria-label="Slotted home">
-            <span className="grid size-9 place-items-center rounded-lg bg-brand-700 text-white"><CalendarIcon /></span>
-            <span className="font-display text-xl font-bold">Slotted</span>
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
+          <a href="#builder" className="flex items-center gap-2" aria-label="Slotted home">
+            <span className="grid size-8 place-items-center rounded-lg bg-brand-700 text-white"><CalendarIcon className="size-5" /></span>
+            <span className="font-display text-lg font-bold">Slotted</span>
           </a>
+
+          <nav aria-label="Main" className="order-last -mx-1 flex w-full flex-wrap items-center gap-0.5 lg:order-none lg:mx-0 lg:w-auto lg:flex-nowrap">
+            {tab("builder", "My week")}
+            {tab("compare", "Compare")}
+            {tab("find", "Find courses")}
+            {tab("reviews", "Reviews")}
+            {tab("events", "Events")}
+            <details className="relative">
+              <summary className={`cursor-pointer list-none rounded-lg px-3 py-1.5 text-sm whitespace-nowrap [&::-webkit-details-marker]:hidden ${
+                moreActive ? "bg-brand-50 font-semibold text-brand-700" : "text-muted hover:bg-page hover:text-ink"
+              }`}>
+                More ▾
+              </summary>
+              <div className="absolute right-0 z-40 mt-1 w-44 rounded-xl border border-line bg-white p-1.5 shadow-lg lg:left-0 lg:right-auto">
+                {morePages.map(([target, label]) => (
+                  <a key={target} href={`#${target}`} aria-current={page === target ? "page" : undefined}
+                    onClick={(e) => (e.currentTarget.closest("details") as HTMLDetailsElement | null)?.removeAttribute("open")}
+                    className={`block rounded-lg px-3 py-1.5 text-sm ${page === target ? "bg-brand-50 font-semibold text-brand-700" : "hover:bg-page"}`}>
+                    {label}
+                  </a>
+                ))}
+              </div>
+            </details>
+          </nav>
+
           <div className="ml-auto flex items-center gap-2">
-            <label className="flex items-center gap-2 text-sm text-muted">
-              <span className="hidden sm:inline">Term</span>
-              <select
-                value={term}
-                onChange={(e) => setTerm(e.target.value as GridTerm)}
-                aria-label="Term"
-                className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-ink"
-              >
-                <option value="first_term">{TERM_LABELS.first_term}</option>
-                <option value="second_term">{TERM_LABELS.second_term}</option>
-              </select>
-            </label>
+            <div role="radiogroup" aria-label="Term" className="flex rounded-lg bg-page p-0.5 text-sm">
+              {(["first_term", "second_term"] as GridTerm[]).map((t) => (
+                <button key={t} type="button" role="radio" aria-checked={term === t} onClick={() => setTerm(t)}
+                  title={TERM_LABELS[t]}
+                  className={`rounded-md px-3 py-1 ${term === t ? "bg-white font-semibold text-brand-700 shadow-sm" : "text-muted hover:text-ink"}`}>
+                  {t === "first_term" ? "Fall" : "Winter"}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={() => setPrioritiesOpen(true)}
@@ -208,7 +252,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
             <details className="relative">
               <summary
                 aria-label={`Account: ${session.user.email}`}
-                className="grid size-9 cursor-pointer list-none place-items-center rounded-full bg-brand-100 text-sm font-bold text-brand-700 uppercase [&::-webkit-details-marker]:hidden"
+                className="grid size-8 cursor-pointer list-none place-items-center rounded-full bg-brand-100 text-sm font-bold text-brand-700 uppercase [&::-webkit-details-marker]:hidden"
               >
                 {(session.user.email ?? "?").slice(0, 1)}
               </summary>
@@ -227,17 +271,6 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
             </details>
           </div>
         </div>
-        <nav aria-label="Main" className="mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-4 pt-2 [scrollbar-width:none]">
-          {tab("builder", "Builder")}
-          {tab("compare", "Compare")}
-          {tab("programs", "Programs")}
-          {tab("find", "Find courses")}
-          {tab("friends", "Friends")}
-          {tab("events", "Events")}
-          {tab("reviews", "Reviews")}
-          {tab("clubs", "Clubs")}
-          {profile.is_admin && tab("admin", "Admin")}
-        </nav>
       </header>
       <PlanBar schedule={schedule} userId={session.user.id} />
 

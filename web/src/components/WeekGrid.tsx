@@ -137,7 +137,7 @@ export function WeekGrid({ picks, colorOf, conflicted, locked, moved = new Set()
                   role="listitem"
                   title={description.join("\n")}
                   aria-label={description.join(", ")}
-                  className={`absolute overflow-hidden rounded-lg px-1.5 py-1 text-[11px] leading-tight shadow-sm transition-[top,left,width,height] duration-700 ease-in-out motion-reduce:transition-none ${border}`}
+                  className={`absolute overflow-hidden rounded-lg px-1.5 py-1 text-xs leading-tight shadow-sm transition-[top,left,width,height] duration-700 ease-in-out motion-reduce:transition-none ${border}`}
                   style={{
                     top: top + 1,
                     height: blockHeight - 2,
@@ -152,9 +152,7 @@ export function WeekGrid({ picks, colorOf, conflicted, locked, moved = new Set()
                     <span className="font-bold">{block.pick.courseCode.replace(/^COMPSCI /, "CS ")}</span>
                     {isLocked && <LockIcon className="size-3 shrink-0" />}
                   </div>
-                  <div>{sectionLabel(section)}</div>
-                  {blockHeight > 44 && <div>{formatRange(block.startText, block.endText)}</div>}
-                  {blockHeight > 58 && <div className="truncate opacity-80">{room}</div>}
+                  <div className="opacity-80">{section.component}</div>
                 </div>
               );
             })}

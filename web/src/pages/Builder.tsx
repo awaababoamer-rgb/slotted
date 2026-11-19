@@ -207,11 +207,11 @@ export function Builder({ courses, schedule, term, onEditPriorities, myEvents, p
 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted" aria-label="Legend">
-            <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-conflict-600 bg-[#fff4ec]" />Time conflict</li>
-            <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-brand-700" />Moved by a fix</li>
-            <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-brand-600/40" />Where it was</li>
-            <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded bg-brand-700" />Locked section</li>
-            <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-good-700 bg-good-50" />Your club event</li>
+            {shownConflicts.length > 0 && <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-conflict-600 bg-[#fff4ec]" />Time conflict</li>}
+            {moved.size > 0 && <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-brand-700" />Moved by a fix</li>}
+            {termGhosts.length > 0 && <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-brand-600/40" />Where it was</li>}
+            {locked.size > 0 && <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded bg-brand-700" />Locked section</li>}
+            {myEvents.added.length > 0 && <li className="flex items-center gap-1.5"><span className="h-3 w-5 rounded border-2 border-dashed border-good-700 bg-good-50" />Your club event</li>}
           </ul>
           <div className="flex flex-wrap items-start justify-end gap-2">
             <CalendarExport picks={picks} term={term} addedEvents={myEvents.added} />

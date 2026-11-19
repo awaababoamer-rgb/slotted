@@ -2,7 +2,7 @@ import { hasKnownTimes, type Course, type Section } from "@slotted/engine";
 import type { Ratings } from "../data/reviews";
 import { colorFor } from "../lib/colors";
 import { courseHref } from "../pages/Reviews";
-import { formatMeetings, formatRooms, plural, sectionLabel, termTag } from "../lib/format";
+import { formatMeetings, plural, sectionLabel, termTag } from "../lib/format";
 import type { ScheduleApi } from "../state/useSchedule";
 import { CloseIcon, LockIcon } from "./icons";
 
@@ -48,7 +48,6 @@ function SectionRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-semibold">{sectionLabel(section)}</span>
-          <span className="text-[11px] text-muted">Class {section.class_number}</span>
           {conflict && <Tag tone="conflict">Conflict</Tag>}
           {isMoved && <Tag tone="info">Moved</Tag>}
           {section.full && <Tag tone="full">Full</Tag>}
@@ -56,12 +55,11 @@ function SectionRow({
         </div>
         <div className="text-xs text-muted">{sectionSummary(section)}</div>
         <div className="text-xs text-muted">
-          {formatRooms(section.meetings)}
           {instructorList.map((name, i) => {
             const r = profRatings.get(`${course.code}|${name}`);
             return (
               <span key={name}>
-                {formatRooms(section.meetings) || i > 0 ? (i > 0 ? ", " : " · ") : ""}
+                {i > 0 ? ", " : ""}
                 {name}
                 {r && (
                   <a
@@ -131,9 +129,7 @@ export function MyCourses({ schedule, previewSections = new Map(), moved = new S
         <h2 className="font-display text-lg font-semibold">My courses</h2>
         <span className="text-xs text-muted">{plural(choices.length, "course")}</span>
       </div>
-      <p className="mt-1 border-b border-line pb-3 text-xs text-muted">
-        Lock a section and Smart Resolve will never move it.
-      </p>
+      <div className="mt-2 border-b border-line" />
 
       {choices.length === 0 && (
         <p className="py-6 text-center text-sm text-muted">Add a course above to start building your week.</p>
