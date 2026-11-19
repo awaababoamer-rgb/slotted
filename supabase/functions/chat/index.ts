@@ -12,6 +12,10 @@
 //   GEMINI_MODEL     optional, defaults to gemini-3.5-flash
 
 const MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.5-flash";
+/** Tried in order when the main model is busy, slow or rate-limited. */
+const FALLBACK_MODELS = ["gemini-3.1-flash-lite", "gemini-3-flash-preview"];
+/** Give up on one model after this long and try the next (the site waits for the whole thing). */
+const TIMEOUT_MS = 20_000;
 const MAX_TURNS = 30; // messages + tool results kept in one conversation
 const MAX_CHARS = 40_000; // total size of one request, to protect the free quota
 const MAX_CONTEXT_CHARS = 8_000;
@@ -131,26 +135,53 @@ Deno.serve(async (req) => {
     return reply({ error: "This conversation is too long. Start a new chat." }, 413);
   }
 
-  const gemini = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: `${SYSTEM_PROMPT}\n\nAbout the student right now:\n${context}` }] },
-        contents,
-        tools: TOOLS,
-        generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
-      }),
-    },
-  );
+  const request = JSON.stringify({
+    systemInstruction: { parts: [{ text: `${SYSTEM_PROMPT}\n\nAbout the student right now:\n${context}` }] },
+    contents,
+    tools: TOOLS,
+    generationConfig: { temperature: 0.4, maxOutputTokens: 4096 },
+  });
 
-  if (gemini.status === 429) return reply({ error: "The assistant is busy (free limit reached). Try again in a minute." }, 429);
-  if (!gemini.ok) {
-    console.error("Gemini error", gemini.status, (await gemini.text()).slice(0, 500));
-    return reply({ error: "The assistant couldn't answer right now." }, 502);
+  // New Gemini models are sometimes overloaded or slow. Try the main model, then backups.
+  // Only "busy" kinds of failure move on to the next model; a bad request won't get better.
+  const problems: string[] = [];
+  for (const model of [MODEL, ...FALLBACK_MODELS.filter((m) => m !== MODEL)]) {
+    let gemini: Response;
+    try {
+      gemini = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: request,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (e) {
+      const reason = (e as Error).name === "TimeoutError" ? "timed out" : "network error";
+      console.error("Gemini", model, reason, String(e).slice(0, 200));
+      problems.push(`${model} ${reason}`);
+      continue;
+    }
+    if (gemini.ok) {
+      const data = await gemini.json();
+      const content = data?.candidates?.[0]?.content;
+      if (content?.parts?.length) return reply({ content, model });
+      const why = data?.candidates?.[0]?.finishReason ?? data?.promptFeedback?.blockReason ?? "empty answer";
+      console.error("Gemini", model, "no content:", why);
+      return reply({ error: `The assistant couldn't answer that (${why}). Try rephrasing.` }, 502);
+    }
+    const text = (await gemini.text()).slice(0, 500);
+    console.error("Gemini", model, gemini.status, text);
+    problems.push(`${model} ${gemini.status}`);
+    // 404 = Google retired the model; the backups may still work.
+    if (![404, 429, 500, 503, 504].includes(gemini.status)) {
+      // e.g. 400 (bad request) or 403 (key/region problem): show the reason.
+      const message = (() => { try { return JSON.parse(text)?.error?.message ?? ""; } catch { return ""; } })();
+      return reply({ error: `The assistant couldn't answer right now (Gemini ${gemini.status}${message ? `: ${message.slice(0, 160)}` : ""}).` }, 502);
+    }
   }
-  const data = await gemini.json();
-  const content = data?.candidates?.[0]?.content ?? { role: "model", parts: [{ text: "Sorry, I couldn't come up with an answer." }] };
-  return reply({ content });
+  const allLimited = problems.every((p) => p.endsWith(" 429"));
+  return reply({
+    error: allLimited
+      ? "The assistant is busy (free limit reached). Try again in a minute."
+      : `Gemini is busy right now. Try again in a moment. (${problems.join(", ")})`,
+  }, 503);
 });

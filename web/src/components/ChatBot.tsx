@@ -36,7 +36,11 @@ async function askServer(contents: Content[], context: string): Promise<Content>
   const { data, error } = await requireSupabase().functions.invoke("chat", { body: { contents, context } });
   if (error) {
     // The function's own message (e.g. "The assistant is busy") is in the response body.
-    let message = "The assistant couldn't answer right now.";
+    let message = error.name === "FunctionsFetchError"
+      ? "Couldn't reach the assistant. Check your internet connection and try again."
+      : error.name === "FunctionsRelayError"
+        ? "The assistant's server didn't respond. Try again in a moment."
+        : "The assistant couldn't answer right now.";
     try {
       const body = await (error as { context?: Response }).context?.json();
       if (body?.error) message = body.error;
