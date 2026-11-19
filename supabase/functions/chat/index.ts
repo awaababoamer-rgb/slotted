@@ -12,8 +12,9 @@
 //   GEMINI_MODEL     optional, defaults to gemini-3.1-flash-lite (fast; ~1 s per step)
 
 const MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.1-flash-lite";
-/** Tried in order when the main model is busy, slow or rate-limited. */
-const FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-3-flash-preview"];
+/** Tried in order when the main model is busy, slow or rate-limited. Free plan limits:
+ *  3.1 / 3.5 Flash Lite = 15 per minute, 500 per day; 3 Flash = 5 per minute, 20 per day (last resort). */
+const FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-3-flash-preview"];
 /** Give up on one model after this long and try the next (the site waits for the whole thing). */
 const TIMEOUT_MS = 12_000;
 const MAX_TURNS = 30; // messages + tool results kept in one conversation
