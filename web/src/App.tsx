@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChatBot } from "./components/ChatBot";
 import type { Session } from "@supabase/supabase-js";
 import { SignIn } from "./auth/SignIn";
 import { useSession } from "./auth/useSession";
@@ -280,6 +281,7 @@ function Shell({ catalog, session, profile }: { catalog: Catalog; session: Sessi
         )}
       </main>
 
+      <ChatBot courses={catalog.courses} schedule={schedule} term={term} />
       <PrioritiesDialog
         open={prioritiesOpen}
         prefs={schedule.state.prefs}
