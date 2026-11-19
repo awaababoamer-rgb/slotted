@@ -57,6 +57,8 @@ export interface Preferences {
   labsSameDayAsLecture?: boolean;
   /** STRICT (fixes only): never move a lecture. */
   onlyMoveLabsAndTutorials?: boolean;
+  /** Credit limit per Fall/Winter term (default 2.5). Going over is warned about, not blocked. */
+  maxCreditsPerTerm?: number;
   /** STRICT: class numbers the student does not want changed. */
   lockedClassNumbers?: number[];
 }

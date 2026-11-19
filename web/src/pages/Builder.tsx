@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  findConflicts, hasKnownTimes, scoreSchedule, suggestFixes, termsOverlap,
+  checkCredits, findConflicts, hasKnownTimes, scoreSchedule, suggestFixes, termsOverlap,
   type Course, type Fix, type Pick, type Preferences,
 } from "@slotted/engine";
 import { CalendarExport } from "../components/CalendarExport";
@@ -12,7 +12,7 @@ import { FitsPanel } from "../components/FitsPanel";
 import { SmartResolve } from "../components/SmartResolve";
 import { WeekGrid } from "../components/WeekGrid";
 import { WelcomeGuide } from "../components/WelcomeGuide";
-import { DAY_LONG, formatTime, sectionLabel, TERM_LABELS } from "../lib/format";
+import { DAY_LONG, formatCredits, formatTime, sectionLabel, TERM_LABELS } from "../lib/format";
 import type { MyEventsApi } from "../data/myEvents";
 import type { Ratings } from "../data/reviews";
 import { eventsForGrid, fixEventWarnings } from "../lib/eventGrid";
@@ -150,6 +150,14 @@ export function Builder({ courses, schedule, term, onEditPriorities, myEvents, p
   const onGrid = new Set(termPicks.map((p) => p.courseCode));
   const offGrid = state.choices.map((ch) => ch.code).filter((code) => !onGrid.has(code));
 
+  // Credit load per term, against the student's limit (Priorities; default 2.5).
+  const credits = checkCredits(
+    state.choices.map((c) => schedule.byCode.get(c.code)).filter((c): c is Course => !!c),
+    state.prefs,
+  );
+  const overHere = credits.over.find((o) => o.term === term);
+  const overOther = credits.over.find((o) => o.term !== term);
+
   const colorOf = (code: string) => state.choices.find((c) => c.code === code)?.colorIndex ?? 0;
   const locked = new Set(state.locked);
   const previewMoves = new Map(preview?.moves.map((m) => [`${m.courseCode}|${m.component}`, m.to]) ?? []);
@@ -178,12 +186,33 @@ export function Builder({ courses, schedule, term, onEditPriorities, myEvents, p
               Week view <span className="text-sm font-normal text-muted">· {TERM_LABELS[term]}</span>
             </h2>
             <dl className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+              <div>
+                <dt className="sr-only">Credits</dt>
+                <dd className={overHere ? "font-semibold text-conflict-700" : ""}>
+                  <b className={overHere ? "" : "text-ink"}>{formatCredits(credits.credits[term])}</b> of {formatCredits(credits.limit)} credits
+                </dd>
+              </div>
               <div><dt className="sr-only">Class time</dt><dd><b className="text-ink">{hoursText(classHours)}</b> of class</dd></div>
               <div><dt className="sr-only">Downtime</dt><dd><b className="text-ink">{hoursText(stats.gapHours)}</b> downtime</dd></div>
               <div><dt className="sr-only">Done by</dt><dd>Done by <b className="text-ink">{stats.latestEnd ? formatTime(stats.latestEnd) : "–"}</b></dd></div>
             </dl>
           </div>
           <div className="p-3">
+            {(overHere || overOther) && (
+              <p role="alert" className="mb-3 rounded-xl border border-conflict-200 bg-conflict-50 px-3 py-2 text-sm text-conflict-700">
+                {overHere ? (
+                  <>
+                    <b>{TERM_LABELS[term]} has {formatCredits(overHere.credits)} credits</b>, {formatCredits(overHere.by)} over your limit of {formatCredits(credits.limit)}.{" "}
+                  </>
+                ) : (
+                  <>
+                    <b>{TERM_LABELS[overOther!.term]} has {formatCredits(overOther!.credits)} credits</b>, over your limit of {formatCredits(credits.limit)}.{" "}
+                  </>
+                )}
+                Remove a course, or{" "}
+                <button type="button" onClick={onEditPriorities} className="font-semibold underline">change the limit</button>.
+              </p>
+            )}
             {offGrid.length > 0 && (
               <p className="mb-3 rounded-xl bg-page px-3 py-2 text-sm text-muted">
                 {termPicks.length === 0 ? "Nothing to show on this grid yet: " : "Not shown on the grid: "}

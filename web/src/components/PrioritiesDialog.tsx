@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { LIGHT_DAY_MAX_HOURS, type Day, type Preferences } from "@slotted/engine";
+import { DEFAULT_MAX_CREDITS_PER_TERM, LIGHT_DAY_MAX_HOURS, type Day, type Preferences } from "@slotted/engine";
 import { DAY_LONG, formatTime } from "../lib/format";
 
 /** The lunch window from the design: at least one free hour between 11:30 AM and 1:30 PM. */
@@ -195,6 +195,16 @@ export function PrioritiesDialog({ open, prefs, onSave, onClose }: Props) {
               Fixes and weeks with at most {LIGHT_DAY_MAX_HOURS} hours of class on {DAY_LONG[draft.lightDay]} rank higher.
             </p>
           )}
+
+          <Segmented
+            label="Credit limit per term"
+            value={String(draft.maxCreditsPerTerm ?? DEFAULT_MAX_CREDITS_PER_TERM)}
+            onChange={(v) => set({ maxCreditsPerTerm: Number(v) })}
+            options={["1.5", "2", "2.5", "3", "3.5"].map((v) => ({ value: v, label: Number(v).toFixed(1) }))}
+          />
+          <p className="-mt-3 text-xs text-muted">
+            2.5 is a typical full-time term (5.0 a year). You'll get a warning above the week when a term goes over. Check your faculty's rules.
+          </p>
 
           <fieldset>
             <legend className="text-sm font-semibold">Ranking rules</legend>

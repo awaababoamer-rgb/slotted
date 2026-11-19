@@ -1,8 +1,8 @@
-import { hasKnownTimes, type Course, type Section } from "@slotted/engine";
+import { courseCredits, hasKnownTimes, type Course, type Section } from "@slotted/engine";
 import type { Ratings } from "../data/reviews";
 import { colorFor } from "../lib/colors";
 import { courseHref } from "../pages/Reviews";
-import { formatMeetings, plural, sectionLabel, termTag } from "../lib/format";
+import { formatCredits, formatMeetings, plural, sectionLabel, termTag } from "../lib/format";
 import type { ScheduleApi } from "../state/useSchedule";
 import { CloseIcon, LockIcon } from "./icons";
 
@@ -156,7 +156,7 @@ export function MyCourses({ schedule, previewSections = new Map(), moved = new S
                     <h3 className="text-sm font-bold">
                       <a href={courseHref(course.code)} className="hover:text-brand-700 hover:underline" title="Reviews">{course.code}</a>
                     </h3>
-                    <span className="text-[11px] text-muted">{termTag(course.term)}</span>
+                    <span className="text-[11px] text-muted">{termTag(course.term)} · {formatCredits(courseCredits(course))} credit</span>
                   </div>
                   <p className="truncate text-xs text-muted">{String(course.title ?? "")}</p>
                 </div>

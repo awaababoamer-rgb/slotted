@@ -10,4 +10,6 @@ export { adjustedRating, findCoursesTogether, findFittingCourses, fitCourse, ran
 export type { CourseFit, CourseRatingSummary, FitResult, RankOptions, Recommendation, RecommendFilters } from "./recommend";
 export { buildIcs, firstWeekdayOnOrAfter } from "./ics";
 export type { IcsEvent, IcsTerm } from "./ics";
+export { checkCredits, codeSuffix, courseCredits, creditSplit, termCredits, DEFAULT_MAX_CREDITS_PER_TERM } from "./credits";
+export type { CreditCheck, TermCredits } from "./credits";
 export type * from "./types";

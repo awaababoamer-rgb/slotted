@@ -70,6 +70,11 @@ export function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
+/** Credits as Western writes them: 0.5, 1.0, 2.25. */
+export function formatCredits(n: number): string {
+  return Number.isInteger(n * 2) ? n.toFixed(1) : n.toFixed(2);
+}
+
 export function plural(n: number, word: string, many = `${word}s`): string {
   return `${n} ${n === 1 ? word : many}`;
 }

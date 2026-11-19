@@ -2,10 +2,10 @@
 // catalog already loaded in the browser and use the schedule engine, so the
 // assistant's facts come from our data, not from the AI's memory.
 
-import { findFittingCourses, hasKnownTimes, rankCourses, type Course, type Day } from "@slotted/engine";
+import { checkCredits, courseCredits, findFittingCourses, hasKnownTimes, rankCourses, type Course, type Day } from "@slotted/engine";
 import type { Ratings } from "../data/reviews";
 import type { ScheduleApi } from "../state/useSchedule";
-import { formatMeetings, formatRooms, sectionLabel, termTag, TERM_LABELS } from "./format";
+import { formatCredits, formatMeetings, formatRooms, sectionLabel, termTag, TERM_LABELS } from "./format";
 
 export interface Proposal {
   kind: "add" | "remove";
@@ -52,6 +52,7 @@ function searchCourses(env: ToolEnv, args: { query?: string; term?: string }) {
       code: c.code,
       title: c.title,
       term: termTag(c.term),
+      credits: courseCredits(c),
       times_known: hasTimes(c),
       rating: ratingText(env.ratings.get(c.code)),
       in_my_week: env.schedule.state.choices.some((ch) => ch.code === c.code),
@@ -150,6 +151,8 @@ export function describeStudent(env: ToolEnv, term: "first_term" | "second_term"
   }
   const conflicts = schedule.conflictReport.conflicts;
   lines.push(conflicts.length === 0 ? "No time conflicts." : `Conflicts: ${conflicts.slice(0, 8).map((c) => `${c.a.courseCode} ${sectionLabel(c.a.section)} vs ${c.b.courseCode} ${sectionLabel(c.b.section)} on ${c.day} ${c.start}-${c.end}`).join("; ")}`);
+  const credits = checkCredits(schedule.state.choices.map((c) => env.byCode.get(c.code)).filter((c): c is Course => !!c), schedule.state.prefs);
+  lines.push(`Credits: Fall ${formatCredits(credits.credits.first_term)}, Winter ${formatCredits(credits.credits.second_term)} (their limit is ${formatCredits(credits.limit)} per term; mention it if a suggestion would go over).`);
   const p = schedule.state.prefs;
   lines.push(`Priorities: ${[
     p.earliestStart && `classes after ${p.earliestStart}`,
