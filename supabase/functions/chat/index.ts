@@ -9,13 +9,13 @@
 //
 // Secrets (Supabase dashboard -> Edge Functions -> Secrets):
 //   GEMINI_API_KEY   required
-//   GEMINI_MODEL     optional, defaults to gemini-3.5-flash
+//   GEMINI_MODEL     optional, defaults to gemini-3.1-flash-lite (fast; ~1 s per step)
 
-const MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.5-flash";
+const MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.1-flash-lite";
 /** Tried in order when the main model is busy, slow or rate-limited. */
-const FALLBACK_MODELS = ["gemini-3.1-flash-lite", "gemini-3-flash-preview"];
+const FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-3-flash-preview"];
 /** Give up on one model after this long and try the next (the site waits for the whole thing). */
-const TIMEOUT_MS = 20_000;
+const TIMEOUT_MS = 12_000;
 const MAX_TURNS = 30; // messages + tool results kept in one conversation
 const MAX_CHARS = 40_000; // total size of one request, to protect the free quota
 const MAX_CONTEXT_CHARS = 8_000;
