@@ -41,6 +41,8 @@ export function Programs({ courses, schedule, userId }: { courses: Course[]; sch
     try { return localStorage.getItem(storageKey); } catch { return null; }
   });
   const [chosen, setChosen] = useState<Record<string, string[]>>({}); // requirement id -> picked codes
+  // Required courses start ticked; a student can untick the ones they aren't taking this year.
+  const [skipped, setSkipped] = useState<Set<string>>(new Set()); // "requirement id|entry"
   const [added, setAdded] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -80,9 +82,20 @@ export function Programs({ courses, schedule, userId }: { courses: Course[]; sch
     });
   }
 
+  function toggleRequired(req: Requirement, code: string) {
+    const key = `${req.id}|${code}`;
+    setSkipped((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   const toAdd = program
     ? [...new Set([
-        ...program.requirements.filter((r) => r.kind === "required").flatMap((r) => r.course_codes),
+        ...program.requirements.filter((r) => r.kind === "required")
+          .flatMap((r) => r.course_codes.filter((code) => !skipped.has(`${r.id}|${code}`))),
         ...program.requirements.filter((r) => r.kind === "choose").flatMap((r) => chosen[r.id] ?? []),
       ])]
         .filter((entry) => !entryVariants(entry).some((c) => mine.has(c)))
@@ -111,7 +124,7 @@ export function Programs({ courses, schedule, userId }: { courses: Course[]; sch
           <p className="mt-6 text-sm text-muted">No programs have been added yet. Use the Builder to add courses yourself.</p>
         ) : (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {programs.map((p) => <ProgramCard key={p.id} program={p} onPick={() => { setProgramId(p.id); setChosen({}); setAdded(null); }} />)}
+            {programs.map((p) => <ProgramCard key={p.id} program={p} onPick={() => { setProgramId(p.id); setChosen({}); setSkipped(new Set()); setAdded(null); }} />)}
           </div>
         )}
         <p className="mt-6 text-xs text-muted">
@@ -135,7 +148,11 @@ export function Programs({ courses, schedule, userId }: { courses: Course[]; sch
         )}
       </p>
 
-      <div className="mt-5 space-y-4">
+      <p className="mt-3 text-sm text-muted">
+        Tick the courses you're taking this year, then press <b className="text-ink">Add to my week</b>. Required courses start ticked; untick any you're taking later.
+      </p>
+
+      <div className="mt-4 space-y-4">
         {program.requirements.map((req) => (
           <section key={req.id} className="rounded-2xl border border-line bg-white p-4 shadow-sm">
             <h2 className="font-display font-semibold">
@@ -148,15 +165,15 @@ export function Programs({ courses, schedule, userId }: { courses: Course[]; sch
               {req.course_codes.map((code) => {
                 const course = resolved.get(code);
                 const isMine = entryVariants(code).some((c) => mine.has(c));
-                const picked = (chosen[req.id] ?? []).includes(code);
+                const picked = req.kind === "required"
+                  ? !skipped.has(`${req.id}|${code}`)
+                  : (chosen[req.id] ?? []).includes(code);
                 const label = entryLabel(code);
                 return (
                   <li key={code} className="flex items-center gap-3 py-2">
-                    {req.kind === "choose" && (
-                      <input type="checkbox" checked={picked || isMine} disabled={isMine || !course}
-                        onChange={() => toggleChoice(req, code)} aria-label={`Choose ${label}`}
-                        className="size-4 accent-brand-700" />
-                    )}
+                    <input type="checkbox" checked={isMine || (picked && !!course)} disabled={isMine || !course}
+                      onChange={() => (req.kind === "required" ? toggleRequired(req, code) : toggleChoice(req, code))}
+                      aria-label={`Add ${label}`} className="size-4 accent-brand-700" />
                     <div className="min-w-0 flex-1">
                       <a href={courseHref(course?.code ?? entryVariants(code)[0])} className="text-sm font-semibold hover:text-brand-700 hover:underline">{label}</a>
                       <p className="truncate text-xs text-muted">{String(course?.title ?? "")}</p>

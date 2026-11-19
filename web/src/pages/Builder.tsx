@@ -146,6 +146,9 @@ export function Builder({ courses, schedule, term, onEditPriorities, myEvents, p
     .map((c) => schedule.byCode.get(c.code))
     .filter((c): c is Course => !!c);
   const otherTermCourses = [...new Set(picks.filter((p) => !termsOverlap(p.term, term)).map((p) => p.courseCode))];
+  // Courses with nothing on this term's grid (online only, other term, or no times yet).
+  const onGrid = new Set(termPicks.map((p) => p.courseCode));
+  const offGrid = state.choices.map((ch) => ch.code).filter((code) => !onGrid.has(code));
 
   const colorOf = (code: string) => state.choices.find((c) => c.code === code)?.colorIndex ?? 0;
   const locked = new Set(state.locked);
@@ -181,6 +184,15 @@ export function Builder({ courses, schedule, term, onEditPriorities, myEvents, p
             </dl>
           </div>
           <div className="p-3">
+            {offGrid.length > 0 && (
+              <p className="mb-3 rounded-xl bg-page px-3 py-2 text-sm text-muted">
+                {termPicks.length === 0 ? "Nothing to show on this grid yet: " : "Not shown on the grid: "}
+                <b className="text-ink">{offGrid.join(", ")}</b>{" "}
+                ({offGrid.length === 1 ? "it's" : "they're"} online, in the other term, or {offGrid.length === 1 ? "has" : "have"} no times yet).{" "}
+                <a href="#not-on-grid" onClick={(e) => { e.preventDefault(); document.getElementById("not-on-grid")?.scrollIntoView({ behavior: "smooth" }); }}
+                  className="font-semibold text-brand-700 hover:underline">Details</a>
+              </p>
+            )}
             <WeekGrid
               picks={termPicks}
               colorOf={colorOf}
@@ -212,7 +224,7 @@ export function Builder({ courses, schedule, term, onEditPriorities, myEvents, p
         </div>
 
         {(noTimes.length > 0 || online.length > 0 || otherTermCourses.length > 0) && (
-          <section className="rounded-2xl border border-line bg-white p-4 text-sm shadow-sm">
+          <section id="not-on-grid" className="scroll-mt-32 rounded-2xl border border-line bg-white p-4 text-sm shadow-sm">
             <h2 className="font-semibold">Not on this grid</h2>
             <ul className="mt-1 space-y-1 text-muted">
               {noTimes.map((c) => (
