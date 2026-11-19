@@ -162,9 +162,12 @@ export function recentTerms(count = 12): string[] {
   return terms;
 }
 
-/** A Rate My Professors search for this name (a link only; we never copy their data). */
+/** Western University's school number on Rate My Professors (ratemyprofessors.com/school/1491). */
+const RMP_WESTERN_SCHOOL_ID = 1491;
+
+/** A Rate My Professors search for this name at Western (a link only; we never copy their data). */
 export function rateMyProfessorsUrl(professor: string): string {
-  return `https://www.ratemyprofessors.com/search/professors?q=${encodeURIComponent(professor)}`;
+  return `https://www.ratemyprofessors.com/search/professors/${RMP_WESTERN_SCHOOL_ID}?q=${encodeURIComponent(professor)}`;
 }
 
 /** Every course's averages, keyed by course code (for Find courses). */
