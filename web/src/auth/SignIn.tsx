@@ -21,7 +21,7 @@ function explain(message: string): string {
  * Sign in with a one-time code emailed to a university address (Western, Waterloo, ...). No passwords.
  * Slotted's own design: it does not look like Western's login page.
  */
-export function SignIn() {
+export function SignIn({ onBack }: { onBack?: () => void }) {
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -177,6 +177,14 @@ export function SignIn() {
             </form>
           )}
         </main>
+
+        {onBack && (
+          <p className="mt-4 text-center">
+            <button type="button" onClick={onBack} className="text-sm font-semibold text-brand-700 hover:underline">
+              ← Keep using Slotted as a guest
+            </button>
+          </p>
+        )}
 
         <p className="mt-6 text-center text-xs text-muted">
           Slotted is an independent student project, not affiliated with Western University.

@@ -4,6 +4,7 @@ import {
   courseRatings, createReview, deleteReview, listReviews, rateMyProfessorsUrl, recentTerms, reportReview, updateReview,
   type Ratings, type Review, type ReviewInput,
 } from "../data/reviews";
+import { useAccount } from "../auth/account";
 import { formatDate, plural, termTag } from "../lib/format";
 
 const OTHER = "__other__";
@@ -150,6 +151,7 @@ function RatingTile({ label, value, suffix }: { label: string; value: string; su
 
 /** A course's reviews: averages, filters by professor and term, and the reviews themselves. */
 export function CoursePage({ course }: { course: Course | undefined }) {
+  const { userId, signIn } = useAccount();
   const [reviews, setReviews] = useState<Review[] | null>(null);
   const [ratings, setRatings] = useState<Ratings | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -221,9 +223,9 @@ export function CoursePage({ course }: { course: Course | undefined }) {
           <p className="text-muted">{String(course.title ?? "")} · {termTag(course.term)}</p>
         </div>
         {!formOpen && (
-          <button type="button" onClick={() => { setEditing(null); setFormOpen(true); }}
+          <button type="button" onClick={() => (userId ? (setEditing(null), setFormOpen(true)) : signIn())}
             className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">
-            Write a review
+            {userId ? "Write a review" : "Sign in to write a review"}
           </button>
         )}
       </div>
@@ -315,9 +317,9 @@ export function CoursePage({ course }: { course: Course | undefined }) {
                   <button type="button" onClick={() => { setEditing(r); setFormOpen(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="text-brand-700 hover:underline">Edit</button>
                   <button type="button" onClick={() => void remove(r)} className="text-conflict-700 hover:underline">Delete</button>
                 </>
-              ) : (
+              ) : userId ? (
                 <button type="button" onClick={() => void report(r)} className="text-muted hover:text-conflict-700">Report</button>
-              )}
+              ) : null}
             </div>
           </li>
         ))}

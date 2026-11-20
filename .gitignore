@@ -7,8 +7,8 @@
 .dms-session/
 .dms-logs/
 
-# Course data includes Draft My Schedule times/rooms/instructors (signed-in students only).
-# It lives in Supabase now, readable only when signed in. Never commit it.
+# Course data (scraper output). It lives in Supabase, where anyone can read it (guest mode);
+# the website loads it from there, so the big JSON file isn't kept in git.
 data/courses.json
 data/*.json
 *storage_state*.json

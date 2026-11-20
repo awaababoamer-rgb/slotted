@@ -86,7 +86,7 @@ function EventCard({ event, fit, canManage, added, onToggle, onEdit, onDelete }:
 }
 
 /** The club events board: events filtered against the student's schedule. */
-export function Events({ userId, picks, myEvents }: { userId: string; picks: Pick[]; myEvents: MyEventsApi }) {
+export function Events({ userId, picks, myEvents }: { userId: string | null; picks: Pick[]; myEvents: MyEventsApi }) {
   const { events } = myEvents;
   const [clubs, setClubs] = useState<Club[]>([]);
   const [execIds, setExecIds] = useState<Set<string>>(new Set());
@@ -101,7 +101,12 @@ export function Events({ userId, picks, myEvents }: { userId: string; picks: Pic
 
   const refresh = async () => {
     try {
-      const [, cl, ex] = await Promise.all([myEvents.refresh(), listVisibleClubs(), myExecClubIds(userId)]);
+      // Guests only read events; clubs and exec rights are for signed-in students.
+      const [, cl, ex] = await Promise.all([
+        myEvents.refresh(),
+        userId ? listVisibleClubs() : Promise.resolve([]),
+        userId ? myExecClubIds(userId) : Promise.resolve(new Set<string>()),
+      ]);
       setClubs(cl);
       setExecIds(ex);
     } catch (e) {

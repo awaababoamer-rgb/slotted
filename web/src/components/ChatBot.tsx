@@ -232,7 +232,7 @@ export function ChatBot({ courses, schedule, term }: { courses: Course[]; schedu
               </button>
             </div>
             <p className="mt-1 px-1 text-[10px] text-muted">
-              Answers come from Google Gemini and can be wrong. Don't share personal info. Check prerequisites with the Academic Calendar.
+              Answers come from AI models (Groq, with Google Gemini as backup) and can be wrong. Don't share personal info. Check prerequisites with the Academic Calendar.
             </p>
           </form>
         </section>

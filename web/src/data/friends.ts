@@ -79,11 +79,12 @@ export async function friendTimetable(friendId: string): Promise<SharedChoice[] 
  * Whether you share your timetable, kept in sync: while sharing is on, any
  * change to your courses is re-published (a second after you stop editing).
  */
-export function useSharing(userId: string, choices: CourseChoice[]) {
+export function useSharing(userId: string | null, choices: CourseChoice[]) {
   const [sharing, setSharingState] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!userId) return setSharingState(false); // guests can't share
     amISharing(userId).then(setSharingState).catch(() => setSharingState(false));
   }, [userId]);
 
@@ -99,7 +100,7 @@ export function useSharing(userId: string, choices: CourseChoice[]) {
     setError(null);
     try {
       if (on) await shareTimetable(choices);
-      else await stopSharing(userId);
+      else if (userId) await stopSharing(userId);
       setSharingState(on);
     } catch (e) {
       setError((e as Error).message);

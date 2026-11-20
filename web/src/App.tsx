@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChatBot } from "./components/ChatBot";
 import type { Session } from "@supabase/supabase-js";
+import { AccountProvider, GUEST_ID, SignInNeeded } from "./auth/account";
 import { SignIn } from "./auth/SignIn";
 import { useSession } from "./auth/useSession";
 import { CalendarIcon } from "./components/icons";
@@ -50,6 +51,7 @@ function Loading({ text }: { text: string }) {
 
 export function App() {
   const { session, loading } = useSession();
+  const [signingIn, setSigningIn] = useState(false);
 
   if (!supabaseConfigured) {
     return (
@@ -65,18 +67,43 @@ export function App() {
     );
   }
   if (loading) return <Loading text="Getting things ready…" />;
-  if (!session) return <SignIn />;
   // key: a different person signing in gets a completely fresh app.
-  return <SignedIn key={session.user.id} session={session} />;
+  if (session) return <SignedIn key={session.user.id} session={session} />;
+  if (signingIn) return <SignIn onBack={() => setSigningIn(false)} />;
+  return <Guest onSignIn={() => setSigningIn(true)} />;
 }
 
-/** Course data is only fetched after sign-in; the database refuses it otherwise. */
+/** Guests (not signed in) can use the planner; their week is saved in this browser only. */
+function Guest({ onSignIn }: { onSignIn: () => void }) {
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    loadCatalog().then(setCatalog).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }, []);
+  if (error) return <Centered><p className="max-w-md text-conflict-700">Couldn't load course data: {error}</p></Centered>;
+  if (!catalog) return <Loading text="Loading courses…" />;
+  return <Shell catalog={catalog} session={null} profile={null} onSignIn={onSignIn} />;
+}
+
+/** First sign-in on this browser: the week planned as a guest comes along to the account. */
+function bringGuestWeek(userId: string) {
+  try {
+    const mine = storageKeyFor(userId);
+    const guest = window.localStorage.getItem(storageKeyFor(GUEST_ID));
+    if (guest && !window.localStorage.getItem(mine)) window.localStorage.setItem(mine, guest);
+  } catch {
+    // Storage blocked: start with an empty week.
+  }
+}
+
+/** A signed-in student: their account, saved plans, reviews, clubs and friends. */
 function SignedIn({ session }: { session: Session }) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    bringGuestWeek(session.user.id);
     Promise.all([loadCatalog(), loadProfile(session.user.id)])
       .then(([c, p]) => { setCatalog(c); setProfile(p); })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
@@ -114,10 +141,13 @@ function pageFromHash(): Page {
   return "builder";
 }
 
-export function Shell({ catalog, session, profile }: { catalog: Catalog; session: Session; profile: Profile }) {
-  const schedule = useSchedule(catalog.courses, storageKeyFor(session.user.id));
-  const myEvents = useMyEvents();
-  const sharing = useSharing(session.user.id, schedule.state.choices);
+export function Shell({ catalog, session, profile, onSignIn }: {
+  catalog: Catalog; session: Session | null; profile: Profile | null; onSignIn?: () => void;
+}) {
+  const userId = session?.user.id ?? null; // null = guest
+  const schedule = useSchedule(catalog.courses, storageKeyFor(userId ?? GUEST_ID));
+  const myEvents = useMyEvents(userId);
+  const sharing = useSharing(userId, schedule.state.choices);
   // Professor averages for the Builder. Refreshed whenever you come back to the Builder.
   const [profRatings, setProfRatings] = useState<Map<string, Ratings>>(new Map());
   const [term, setTerm] = useState<GridTerm>("first_term");
@@ -194,11 +224,12 @@ export function Shell({ catalog, session, profile }: { catalog: Catalog; session
   // Less-used pages live in a "More" menu so the main bar stays simple.
   const morePages: [Page, string][] = [
     ["programs", "Programs"], ["friends", "Friends"], ["clubs", "Clubs"],
-    ...(profile.is_admin ? [["admin", "Admin"] as [Page, string]] : []),
+    ...(profile?.is_admin ? [["admin", "Admin"] as [Page, string]] : []),
   ];
   const moreActive = morePages.some(([p]) => p === page);
 
   return (
+    <AccountProvider value={{ userId, signIn: onSignIn ?? (() => undefined) }}>
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
@@ -249,6 +280,12 @@ export function Shell({ catalog, session, profile }: { catalog: Catalog; session
             >
               Priorities
             </button>
+            {!session ? (
+              <button type="button" onClick={onSignIn}
+                className="rounded-lg bg-brand-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-800">
+                Sign in
+              </button>
+            ) : (
             <details className="relative">
               <summary
                 aria-label={`Account: ${session.user.email}`}
@@ -259,7 +296,7 @@ export function Shell({ catalog, session, profile }: { catalog: Catalog; session
               <div className="absolute right-0 z-40 mt-2 w-64 rounded-xl border border-line bg-white p-3 text-sm shadow-lg">
                 <p className="text-xs text-muted">Signed in as</p>
                 <p className="truncate font-semibold" title={session.user.email}>{session.user.email}</p>
-                {profile.is_admin && <p className="mt-1 text-xs font-semibold text-brand-700">Admin</p>}
+                {profile?.is_admin && <p className="mt-1 text-xs font-semibold text-brand-700">Admin</p>}
                 <button
                   type="button"
                   onClick={() => void supabase?.auth.signOut()}
@@ -269,22 +306,35 @@ export function Shell({ catalog, session, profile }: { catalog: Catalog; session
                 </button>
               </div>
             </details>
+            )}
           </div>
         </div>
       </header>
-      <PlanBar schedule={schedule} userId={session.user.id} />
+      {userId ? (
+        <PlanBar schedule={schedule} userId={userId} />
+      ) : (
+        <div className="border-b border-brand-100 bg-brand-50">
+          <p className="mx-auto max-w-[1400px] px-4 py-2 text-sm text-brand-800">
+            You're trying Slotted as a guest. Your week is saved in this browser.{" "}
+            <button type="button" onClick={onSignIn} className="font-semibold underline">Sign in</button>{" "}
+            with your university email to save plans, write reviews, join clubs and add friends.
+          </p>
+        </div>
+      )}
 
       <main className="flex-1">
-        {page === "admin" ? (
+        {page === "admin" && profile?.is_admin ? (
           <Admin profile={profile} courses={catalog.courses} />
         ) : page === "programs" ? (
-          <Programs courses={catalog.courses} schedule={schedule} userId={session.user.id} />
-        ) : page === "friends" ? (
-          <Friends userId={session.user.id} courses={catalog.courses} schedule={schedule} term={term} sharing={sharing} />
+          <Programs courses={catalog.courses} schedule={schedule} userId={userId ?? GUEST_ID} />
+        ) : page === "friends" && !userId ? (
+          <SignInNeeded title="Friends" what="Add friends with a friend code, share your timetable, and find courses you can take together." />
+        ) : page === "friends" && userId ? (
+          <Friends userId={userId} courses={catalog.courses} schedule={schedule} term={term} sharing={sharing} />
         ) : page === "find" ? (
           <FindCourses courses={catalog.courses} schedule={schedule} term={term} />
         ) : page === "events" ? (
-          <Events userId={session.user.id} picks={schedule.picks} myEvents={myEvents} />
+          <Events userId={userId} picks={schedule.picks} myEvents={myEvents} />
         ) : page === "reviews" ? (
           <Reviews courses={catalog.courses} myCodes={schedule.state.choices.map((c) => c.code)} />
         ) : page === "course" ? (
@@ -292,8 +342,10 @@ export function Shell({ catalog, session, profile }: { catalog: Catalog; session
             key={hash}
             course={catalog.courses.find((c) => c.code === decodeURIComponent(hash.slice("#course/".length)))}
           />
-        ) : page === "clubs" ? (
-          <Clubs userId={session.user.id} />
+        ) : page === "clubs" && !userId ? (
+          <SignInNeeded title="Clubs" what="Request a club page, and once an admin approves it, post your club's events for students to add to their week." />
+        ) : page === "clubs" && userId ? (
+          <Clubs userId={userId} />
         ) : page === "compare" ? (
           <Compare
             courses={catalog.courses}
@@ -341,5 +393,6 @@ export function Shell({ catalog, session, profile }: { catalog: Catalog; session
         </div>
       </footer>
     </div>
+    </AccountProvider>
   );
 }

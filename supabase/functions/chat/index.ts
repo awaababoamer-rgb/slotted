@@ -121,15 +121,21 @@ function reply(body: unknown, status = 200) {
 }
 
 /** Only signed-in Slotted users may use the bot (and the free Gemini quota). */
-async function signedInUser(req: Request): Promise<string | null> {
-  const auth = req.headers.get("Authorization");
-  const url = Deno.env.get("SUPABASE_URL");
-  const apikey = req.headers.get("apikey") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!auth || !url) return null;
-  const res = await fetch(`${url}/auth/v1/user`, { headers: { Authorization: auth, apikey } });
-  if (!res.ok) return null;
-  const user = await res.json();
-  return typeof user?.id === "string" ? user.id : null;
+// ---------- Fair use ----------
+// Anyone can use the assistant, signed in or not (guest mode). To stop one visitor or bot from using up
+// the free AI limits, each address gets at most REQUESTS_PER_MINUTE requests a minute. One question can take
+// a few requests (one per tool round). This is kept in memory, so it's per server instance: a speed bump, not a wall.
+const REQUESTS_PER_MINUTE = 30;
+const recent = new Map<string, number[]>();
+
+function tooMany(req: Request): boolean {
+  const ip = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
+  const now = Date.now();
+  const times = (recent.get(ip) ?? []).filter((t) => now - t < 60_000);
+  times.push(now);
+  recent.set(ip, times);
+  if (recent.size > 5_000) recent.clear(); // never grow without limit
+  return times.length > REQUESTS_PER_MINUTE;
 }
 
 // ---------- Message formats ----------
@@ -260,7 +266,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return reply({ error: "Use POST" }, 405);
 
-  if (!(await signedInUser(req))) return reply({ error: "Please sign in to use the assistant." }, 401);
+  if (tooMany(req)) return reply({ error: "That's a lot of questions at once. Wait a minute, then try again." }, 429);
 
   const groqKey = Deno.env.get("GROQ_API_KEY");
   const geminiKey = Deno.env.get("GEMINI_API_KEY");
